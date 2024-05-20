@@ -43,7 +43,7 @@ class DynamicalSystem:
         sigma = self.compute_dynamical_weights(x)
         # sigma = 1
         self.speed_logger.append(dx)
-        # self.weight_logger.append(sigma)
+        self.weight_logger.append(sigma)
         # return harmonic
         return sigma * harmonic + (1-sigma) * geodesic
         # return geodesic 
