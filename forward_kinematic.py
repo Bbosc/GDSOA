@@ -1,3 +1,4 @@
+import time
 import numpy as np
 import pinocchio as pin
 
@@ -16,6 +17,14 @@ class ForwardKinematic:
         self.dmu = np.zeros((self.model.nq, self.mu.shape[1], self.model.nq))
         self.initial_t = np.array([[[0], [1.], [0.]], [[0], [1.], [0]]])
 
+    def profiler(func):
+        def wrapper(*args):
+            start = time.time()
+            res = func(*args)
+            print(f'execution frequency of {func.__name__}: {1/(time.time() - start):.4f} Hz')
+            return res
+        return wrapper
+    
     def __call__(self, q: np.ndarray):
         pin.forwardKinematics(self.model, self.data, q)
         pin.updateFramePlacements(self.model, self.data)
@@ -42,7 +51,6 @@ class ForwardKinematic:
         mus = link_global_translations + np.einsum('bij,bj->bi', link_global_rotations, self.initial_mu.squeeze())
         sigmas = link_global_rotations @ self.initial_sigma @ link_global_rotations.transpose(0, 2, 1)
         return mus, sigmas
-
 
     def test(self, q: np.ndarray):
         pin.forwardKinematics(self.model, self.data, q)

@@ -29,7 +29,6 @@ class DynamicalSystem:
             return res
         return wrapper
 
-    # @profiler
     def compute_acceleration(self, x, dx):
         embedding_gradient, embedding_hessian = self.embedding.derive(x)
         self.gradient_logger.append(embedding_gradient)
