@@ -41,12 +41,9 @@ class DynamicalSystem:
         harmonic = - np.linalg.inv(metric) @ self.stiffness @ (x - self.attractor) - self.dissipation @ dx
         geodesic = - np.einsum('qij,i->qj', christoffel, dx) @ dx
         sigma = self.compute_dynamical_weights(x)
-        # sigma = 1
         self.speed_logger.append(dx)
         self.weight_logger.append(sigma)
-        # return harmonic
         return sigma * harmonic + (1-sigma) * geodesic
-        # return geodesic 
     
     def integrate(self, x, dx, ddx):
         new_dx = dx + ddx * self.dt
@@ -77,4 +74,5 @@ class DynamicalSystem:
 
     @staticmethod
     def generalized_sigmoid(x, b=1., a=0., k=1., m=0.):
-        return (k-a) / (1 + np.exp(-b*(x-m))) + a
+        c = min(-b*(x-m), 20) # to avoid overflow in exp
+        return (k-a) / (1 + np.exp(c)) + a

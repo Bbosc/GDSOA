@@ -32,6 +32,16 @@ class ForwardKinematic:
 
             self.dsigma[i] = self.derive_sigma(rotation, drotation[i], self.initial_sigma[i])
             self.dmu[i] = self.derive_mu(drotation[i], self.initial_mu[i])
+    
+    def simple_forward(self, q: np.ndarray) -> tuple:
+        pin.forwardKinematics(self.model, self.data, q)
+        pin.updateFramePlacements(self.model, self.data)
+        link_global_translations = np.array([self.data.oMf[i].translation for i in self.link_ids])
+        link_global_rotations = np.array([self.data.oMf[i].rotation for i in self.link_ids])
+        
+        mus = link_global_translations + np.einsum('bij,bj->bi', link_global_rotations, self.initial_mu.squeeze())
+        sigmas = link_global_rotations @ self.initial_sigma @ link_global_rotations.transpose(0, 2, 1)
+        return mus, sigmas
 
 
     def test(self, q: np.ndarray):
