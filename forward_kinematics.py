@@ -45,6 +45,7 @@ class ForwardKinematic:
             if derivation_order > 1:
                 ddR_ddqs.append(self.skew_matrix(Js[-1][3:, i]) @ dR_dqs[-1])
                 ddR = self.rotation_hessian(link_rotations, dR_dqs, ddR_ddqs)
+                ddsigma = self.second_derivative_sigma(self.links[i].covs, link_rotation, dR, ddR)
 
     @staticmethod
     def skew_matrix(axis: np.ndarray):
@@ -86,7 +87,6 @@ class ForwardKinematic:
 
     @staticmethod
     def second_derivative_sigma(sigma_ref, rotation, gradient, hessian):
-        m = np.zeros((gradient.shape[0], gradient.shape[0], rotation.shape[1], rotation.shape[1]))
         a = np.empty((gradient.shape[0], gradient.shape[0], rotation.shape[0], rotation.shape[1]))
         b = np.empty_like(a)
         c = np.empty_like(b)
