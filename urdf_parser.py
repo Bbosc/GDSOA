@@ -13,10 +13,10 @@ class URDFParser:
 class Link:
     def __init__(self, stl_file: str = None, n_components: int = 1) -> None:
         if stl_file is None:
-            points = generate_ellipsoid()
+            points = generate_ellipsoid().T[[0, 2, 1]].T
         gmm = GaussianMixture(n_components=n_components)
         gmm.fit(points)
-        self.means: np.ndarray = gmm.means_
+        self.means: np.ndarray = gmm.means_.transpose(1, 0)
         self.priors: np.ndarray = gmm.weights_
         self.covs: np.ndarray = gmm.covariances_
         self.vector: np.ndarray = points[np.argmax(points[:, 2])] - points[np.argmin(points[:, 2])]
