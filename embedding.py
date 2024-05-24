@@ -80,11 +80,19 @@ class Embedding:
         d = self.x - mu
         a = 0.5 * np.einsum('bq,bij->ijq', gradient, (-sigma_inv + sigma_inv @ d @ d.transpose((0, 2, 1)) @ sigma_inv))
         b1 = - dsigma_inv
-        b2 = np.array([dsigma_inv[:, :, 0] @ d @ d.transpose((0, 2, 1)) @ sigma_inv, dsigma_inv[:, :, 1] @ d @ d.transpose((0, 2, 1)) @ sigma_inv]).squeeze().transpose(1, 2, 0)
-        b3 = np.array([sigma_inv @ d @ d.transpose(0, 2, 1) @ dsigma_inv[:, :, 0], sigma_inv @ d @ d.transpose(0, 2, 1) @ dsigma_inv[:, :, 1]]).squeeze().transpose(1, 2, 0)
-        b4 = np.array([-sigma_inv @ dmu[:, 0].reshape((d.shape)) @ d.transpose(0, 2, 1) @ sigma_inv, -sigma_inv @ dmu[:, 1].reshape(d.shape) @ d.transpose(0, 2, 1) @ sigma_inv]).squeeze().transpose(1,2,0)
-        b5 = sigma_inv @ d @ d.transpose((0, 2, 1)) @ dsigma_inv.transpose(2, 1, 0)
-        b5 = np.array([-sigma_inv @ d @ dmu[:, 0].reshape((d.shape)).transpose(0,2,1) @ sigma_inv, -sigma_inv @ d @ dmu[:, 1].reshape(d.shape).transpose(0, 2, 1) @ sigma_inv]).squeeze().transpose(1,2,0)
+        b2 = np.zeros_like(a)
+        b3 = np.zeros_like(a)
+        b4 = np.zeros_like(a)
+        b5 = np.zeros_like(a)
+        for i in range(self.dim):
+            b2[i] = dsigma_inv[:, :, i] @ d @ d.transpose((0, 2, 1)) @ sigma_inv
+            b3[i] = sigma_inv @ d @ d.transpose(0, 2, 1) @ dsigma_inv[:, :, i]
+            b4[i] = -sigma_inv @ dmu[:, i].reshape((d.shape)) @ d.transpose(0, 2, 1) @ sigma_inv
+            b5[i] = -sigma_inv @ d @ dmu[:, i].reshape((d.shape)).transpose(0,2,1) @ sigma_inv
+        b2 = b2.squeeze().transpose(1, 2, 0)
+        b3 = b3.squeeze().transpose(1, 2, 0)
+        b4 = b4.squeeze().transpose(1, 2, 0)
+        b5 = b5.squeeze().transpose(1, 2, 0)
         b = 0.5 * p * (b1 + b2 + b3 + b4 + b5)
         return a + b
 

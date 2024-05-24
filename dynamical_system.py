@@ -65,7 +65,7 @@ class DynamicalSystem:
         return np.einsum('pq,r->pqr', embedding_hessian, embedding_gradient.squeeze()) + np.einsum('p,qr->pqr', embedding_gradient.squeeze(), embedding_hessian)
     
     def compute_dynamical_weights(self, x: np.ndarray, horizon: float = 0.02, discretion: int = 5):
-        future_x = x + np.linspace(0, horizon, discretion)[:, np.newaxis].repeat(2, axis=1) * (self.attractor - x)
+        future_x = x + np.linspace(0, horizon, discretion)[:, np.newaxis].repeat(self.attractor.shape[0], axis=1) * (self.attractor - x)
         gradient = np.zeros((future_x.shape[0]))
         for i, p in enumerate(future_x):
             gradient[i] = self.embedding.value_only(p)
