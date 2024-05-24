@@ -4,15 +4,13 @@ import numpy as np
 from forward_kinematics import ForwardKinematic
 
 class Embedding:
-    def __init__(self, dimension: int, x: torch.Tensor, initial_mu: torch.Tensor, initial_sigma: torch.Tensor, fk: ForwardKinematic):
+    def __init__(self, dimension: int, x: torch.Tensor, fk: ForwardKinematic):
         self.dim = dimension
         self.fk = fk
         self.x = x
         self._value = 0
         self.gradient = np.zeros((1, self.dim))
         self.hessian = np.zeros((self.dim, self.dim))
-        self.update_parameters(initial_mu, initial_sigma)
-
     
     def update_parameters(self, mu, sigma):
         self.nmu = mu[:, :, np.newaxis]
@@ -37,7 +35,6 @@ class Embedding:
     
     def derive(self, q, dq):
         # update the value of the covariances and centroids
-        # mus, sigmas, dmus, dsigmas, ddmus, ddsigmas = self.fk.test(q)
         mus, sigmas, dmus, dsigmas, ddmus, ddsigmas = self.fk(q, dq)
         self.update_parameters(mu=mus, sigma=sigmas)
         p = self.compute_value()
@@ -59,9 +56,7 @@ class Embedding:
         return self.gradient, self.hessian
     
     def value_only(self, q):
-        # mu, sigma = self.fk.simple_forward(q=q)
         self.fk(q=q, dq=np.zeros_like(q), derivation_order=0)
-        # self.update_parameters(mu=mu, sigma=sigma)
         self.update_parameters(mu=self.fk.mus, sigma=self.fk.sigmas)
         p = self.compute_value()
         return p.sum()
