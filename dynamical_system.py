@@ -30,17 +30,18 @@ class DynamicalSystem:
         return wrapper
 
     def compute_acceleration(self, x, dx):
-        embedding_gradient, embedding_hessian = self.embedding.derive(x)
+        embedding_gradient, embedding_hessian = self.embedding.derive(x, dx)
         self.gradient_logger.append(embedding_gradient)
         self.hessian_logger.append(embedding_hessian)
         metric = self.compute_metric(embedding_gradient)
         self.metric_logger.append(metric)
         christoffel = self.compute_christoffel(metric, embedding_gradient, embedding_hessian)
         self.christ_logger.append(christoffel)
+        sigma = self.compute_dynamical_weights(x)
+        if sigma > 0.9: # only temporary. It's to avoid stucking the trajectory behind the obstacle
+            metric = np.eye(x.shape[0])
         harmonic = - np.linalg.inv(metric) @ self.stiffness @ (x - self.attractor) - self.dissipation @ dx
         geodesic = - np.einsum('qij,i->qj', christoffel, dx) @ dx
-        sigma = self.compute_dynamical_weights(x)
-        # sigma = 1
         self.speed_logger.append(dx)
         self.weight_logger.append(sigma)
         return sigma * harmonic + (1-sigma) * geodesic
@@ -63,13 +64,13 @@ class DynamicalSystem:
     def derive_metric(embedding_gradient: np.linalg.inv, embedding_hessian: np.linalg.inv)->np.ndarray:
         return np.einsum('pq,r->pqr', embedding_hessian, embedding_gradient.squeeze()) + np.einsum('p,qr->pqr', embedding_gradient.squeeze(), embedding_hessian)
     
-    def compute_dynamical_weights(self, x: np.ndarray, horizon: float = 0.1, discretion: int = 5):
+    def compute_dynamical_weights(self, x: np.ndarray, horizon: float = 0.02, discretion: int = 5):
         future_x = x + np.linspace(0, horizon, discretion)[:, np.newaxis].repeat(2, axis=1) * (self.attractor - x)
         gradient = np.zeros((future_x.shape[0]))
         for i, p in enumerate(future_x):
             gradient[i] = self.embedding.value_only(p)
         gradient = np.gradient(gradient, horizon/discretion)
-        weights = self.generalized_sigmoid(np.max(gradient), b=50, a=1, k=0., m=10)
+        weights = self.generalized_sigmoid(np.max(gradient), b=5, a=1, k=0., m=10)
         return weights
 
     @staticmethod

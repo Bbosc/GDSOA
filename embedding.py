@@ -1,7 +1,7 @@
 import time
 import torch
 import numpy as np
-from forward_kinematic import ForwardKinematic
+from forward_kinematics import ForwardKinematic
 
 class Embedding:
     def __init__(self, dimension: int, x: torch.Tensor, initial_mu: torch.Tensor, initial_sigma: torch.Tensor, fk: ForwardKinematic):
@@ -35,11 +35,12 @@ class Embedding:
         res = prefix * np.exp(exp).ravel()
         return res
     
-    def derive(self, q):
+    def derive(self, q, dq):
         # update the value of the covariances and centroids
-        mus, sigmas, dmus, dsigmas, ddmus, ddsigmas = self.fk.test(q)
+        # mus, sigmas, dmus, dsigmas, ddmus, ddsigmas = self.fk.test(q)
+        mus, sigmas, dmus, dsigmas, ddmus, ddsigmas = self.fk(q, dq)
         self.update_parameters(mu=mus, sigma=sigmas)
-        p = 10 * self.compute_value()
+        p = self.compute_value()
         sigma_inv = np.linalg.inv(self.nsigma)
         for i in range(p.shape[0]):
         # compute the gradient of the embedding
@@ -58,10 +59,12 @@ class Embedding:
         return self.gradient, self.hessian
     
     def value_only(self, q):
-        mus, sigmas = self.fk.simple_forward(q)
-        self.update_parameters(mu=mus, sigma=sigmas)
+        # mu, sigma = self.fk.simple_forward(q=q)
+        self.fk(q=q, dq=np.zeros_like(q), derivation_order=0)
+        # self.update_parameters(mu=mu, sigma=sigma)
+        self.update_parameters(mu=self.fk.mus, sigma=self.fk.sigmas)
         p = self.compute_value()
-        return 10 * p.sum()
+        return p.sum()
 
 
     def _derive_wrt_mu(self, p, mu, sigma):
