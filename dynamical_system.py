@@ -37,8 +37,8 @@ class DynamicalSystem:
         self.metric_logger.append(metric)
         christoffel = self.compute_christoffel(metric, embedding_gradient, embedding_hessian)
         self.christ_logger.append(christoffel)
-        # sigma = self.compute_dynamical_weights(x)
-        sigma = 0
+        sigma = self.compute_dynamical_weights(x)
+        # sigma = 0
         if sigma > 0.9: # only temporary. It's to avoid stucking the trajectory behind the obstacle
             metric = np.eye(x.shape[0])
         harmonic = - np.linalg.inv(metric) @ self.stiffness @ (x - self.attractor) - self.dissipation @ dx

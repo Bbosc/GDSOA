@@ -14,6 +14,7 @@ class Embedding:
     
     def update_parameters(self, mu, sigma):
         self.nmu = mu[:, :, np.newaxis]
+        self.diff = self.x[:, np.newaxis] - self.nmu[np.newaxis, :]
         self.nsigma = sigma
         self.gradient = np.zeros((1, self.dim))
         self.hessian = np.zeros((self.dim, self.dim))
@@ -28,9 +29,8 @@ class Embedding:
 
     def compute_value(self):
         prefix = 1/(np.sqrt(np.power(2*np.pi, self.dim) * np.linalg.det(self.nsigma)))
-        diff = (self.x - self.nmu).reshape((self.nmu.shape[0], self.nmu.shape[1], 1))
-        exp = -0.5 * diff.transpose(0, 2, 1) @ np.linalg.inv(self.nsigma) @ diff
-        res = prefix * np.exp(exp).ravel()
+        exp = -0.5*np.einsum('bdij,djk,bdkn->bd', self.diff.transpose(0, 1, 3, 2), np.linalg.inv(self.nsigma), self.diff)
+        res = prefix * np.exp(exp.sum(0)).ravel()
         return res
     
     def derive(self, q, dq):
@@ -40,16 +40,18 @@ class Embedding:
         p = self.compute_value()
         sigma_inv = np.linalg.inv(self.nsigma)
         dsigma_inv = np.einsum('kmn, knpo, kpq -> kmqo', -sigma_inv, dsigmas, sigma_inv)
+        dpdmu = self._derive_wrt_mu(p)
+        dpdsigma = self._derive_wrt_sigma(p)
         for i in range(p.shape[0]):
         # compute the gradient of the embedding
-            dpdmu = self._derive_wrt_mu(p[i], self.nmu[i], self.nsigma[i])
-            dpdsigma = self._derive_wrt_sigma(p[i], self.nmu[i], self.nsigma[i])
+            # dpdmu = self._derive_wrt_mu(p[i], self.nmu[i], self.nsigma[i])
+            # dpdsigma = self._derive_wrt_sigma(p[i], self.nmu[i], self.nsigma[i])
             gradient = (dpdmu.transpose(0, 2, 1) @ dmus[i]).squeeze() + np.einsum('bij,ijk->bk', dpdsigma, dsigmas[i])
+            self.gradient  += gradient
         # compute the hessian of the embedding
             a = self._derive_wrt_q_mu(gradient, p[i], sigma_inv[i], dsigma_inv[i], self.nmu[i], dmus[i])
             b = self._derive_wrt_q_sigma(gradient, p[i], sigma_inv[i], dsigma_inv[i], self.nmu[i], dmus[i])
             hessian = a @ dmus[i] + np.einsum('bi,ijk->jk', dpdmu.squeeze(-1), ddmus[i].transpose(2, 0, 1)) + np.einsum('ijk, kjl->il', b.transpose(2, 0, 1), dsigmas[i]) + np.einsum('ijk,pqjk->pq', dpdsigma, ddsigmas[i])
-            self.gradient  += gradient
             self.hessian  += hessian
         return self.gradient, self.hessian
     
@@ -59,13 +61,12 @@ class Embedding:
         p = self.compute_value()
         return p.sum()
 
-    def _derive_wrt_mu(self, p, mu, sigma):
-        return p * np.linalg.inv(sigma) @ (self.x - mu)
+    def _derive_wrt_mu(self, p):
+        return np.einsum('d, bdij-> bdij', p, np.linalg.inv(self.nsigma) @ self.diff).sum(0)
 
-    def _derive_wrt_sigma(self, p, mu, sigma):
-        inv = np.linalg.inv(sigma)
-        d = self.x - mu
-        return 0.5 * p * (inv @ d @ d.transpose((0, 2, 1)) @ inv)
+    def _derive_wrt_sigma(self, p):
+        inv = np.linalg.inv(self.nsigma)
+        return 0.5 * np.einsum('d, bdij->bdij', p, (inv @ self.diff @ self.diff.transpose(0, 1, 3, 2) @ inv)).sum(0)
     
     def _derive_wrt_q_mu(self, gradient, p, sigma_inv, dsigma_inv, mu, dmu):
         a = np.einsum('bq,bij->qi', gradient, sigma_inv @ (self.x - mu))
