@@ -80,10 +80,10 @@ class Embedding:
         d = self.x - mu
         a = 0.5 * np.einsum('bq,bij->ijq', gradient, (-sigma_inv + sigma_inv @ d @ d.transpose((0, 2, 1)) @ sigma_inv))
         b1 = - dsigma_inv
-        b2 = np.zeros_like(a)
-        b3 = np.zeros_like(a)
-        b4 = np.zeros_like(a)
-        b5 = np.zeros_like(a)
+        b2 = np.zeros((self.dim, a.shape[0], a.shape[0]))
+        b3 = np.zeros_like(b2)
+        b4 = np.zeros_like(b2)
+        b5 = np.zeros_like(b2)
         for i in range(self.dim):
             b2[i] = dsigma_inv[:, :, i] @ d @ d.transpose((0, 2, 1)) @ sigma_inv
             b3[i] = sigma_inv @ d @ d.transpose(0, 2, 1) @ dsigma_inv[:, :, i]
