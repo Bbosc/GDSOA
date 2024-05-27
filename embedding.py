@@ -39,17 +39,15 @@ class Embedding:
         self.update_parameters(mu=mus, sigma=sigmas)
         p = self.compute_value()
         sigma_inv = np.linalg.inv(self.nsigma)
+        dsigma_inv = np.einsum('kmn, knpo, kpq -> kmqo', -sigma_inv, dsigmas, sigma_inv)
         for i in range(p.shape[0]):
         # compute the gradient of the embedding
             dpdmu = self._derive_wrt_mu(p[i], self.nmu[i], self.nsigma[i])
             dpdsigma = self._derive_wrt_sigma(p[i], self.nmu[i], self.nsigma[i])
             gradient = (dpdmu.transpose(0, 2, 1) @ dmus[i]).squeeze() + np.einsum('bij,ijk->bk', dpdsigma, dsigmas[i])
         # compute the hessian of the embedding
-            dsigma_inv = np.zeros((sigmas[i].shape[0], sigmas[i].shape[1], gradient.shape[1]))
-            for j in range(dsigma_inv.shape[-1]):
-                dsigma_inv[:, :, j] = - sigma_inv[i] @ dsigmas[i, :, :, j] @ sigma_inv[i]
-            a = self._derive_wrt_q_mu(gradient, p[i], sigma_inv[i], dsigma_inv, self.nmu[i], dmus[i])
-            b = self._derive_wrt_q_sigma(gradient, p[i], sigma_inv[i], dsigma_inv, self.nmu[i], dmus[i])
+            a = self._derive_wrt_q_mu(gradient, p[i], sigma_inv[i], dsigma_inv[i], self.nmu[i], dmus[i])
+            b = self._derive_wrt_q_sigma(gradient, p[i], sigma_inv[i], dsigma_inv[i], self.nmu[i], dmus[i])
             hessian = a @ dmus[i] + np.einsum('bi,ijk->jk', dpdmu.squeeze(-1), ddmus[i].transpose(2, 0, 1)) + np.einsum('ijk, kjl->il', b.transpose(2, 0, 1), dsigmas[i]) + np.einsum('ijk,pqjk->pq', dpdsigma, ddsigmas[i])
             self.gradient  += gradient
             self.hessian  += hessian
@@ -60,7 +58,6 @@ class Embedding:
         self.update_parameters(mu=self.fk.mus, sigma=self.fk.sigmas)
         p = self.compute_value()
         return p.sum()
-
 
     def _derive_wrt_mu(self, p, mu, sigma):
         return p * np.linalg.inv(sigma) @ (self.x - mu)
@@ -80,19 +77,10 @@ class Embedding:
         d = self.x - mu
         a = 0.5 * np.einsum('bq,bij->ijq', gradient, (-sigma_inv + sigma_inv @ d @ d.transpose((0, 2, 1)) @ sigma_inv))
         b1 = - dsigma_inv
-        b2 = np.zeros((self.dim, a.shape[0], a.shape[0]))
-        b3 = np.zeros_like(b2)
-        b4 = np.zeros_like(b2)
-        b5 = np.zeros_like(b2)
-        for i in range(self.dim):
-            b2[i] = dsigma_inv[:, :, i] @ d @ d.transpose((0, 2, 1)) @ sigma_inv
-            b3[i] = sigma_inv @ d @ d.transpose(0, 2, 1) @ dsigma_inv[:, :, i]
-            b4[i] = -sigma_inv @ dmu[:, i].reshape((d.shape)) @ d.transpose(0, 2, 1) @ sigma_inv
-            b5[i] = -sigma_inv @ d @ dmu[:, i].reshape((d.shape)).transpose(0,2,1) @ sigma_inv
-        b2 = b2.squeeze().transpose(1, 2, 0)
-        b3 = b3.squeeze().transpose(1, 2, 0)
-        b4 = b4.squeeze().transpose(1, 2, 0)
-        b5 = b5.squeeze().transpose(1, 2, 0)
+        b2 = np.einsum('mnk, bnp -> mpk', dsigma_inv, d @ d.transpose(0, 2, 1) @ sigma_inv)
+        b3 = np.einsum('bmn,npk->mpk', sigma_inv @ d @ d.transpose(0, 2, 1), dsigma_inv)
+        b4 = np.einsum('mk, bpn->mnk', -sigma_inv @ dmu, d.transpose(0,2, 1) @ sigma_inv)
+        b5 = np.einsum('bmp, kn->mnk', -sigma_inv @ d, dmu.T @ sigma_inv)
         b = 0.5 * p * (b1 + b2 + b3 + b4 + b5)
         return a + b
 

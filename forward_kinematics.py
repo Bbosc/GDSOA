@@ -1,3 +1,4 @@
+import time
 from typing import List
 import numpy as np
 import pinocchio as pin
@@ -18,7 +19,14 @@ class ForwardKinematic:
         self.ddmus = np.zeros((self.model.nq, self.model.nq, self.model.nq, self.dim))
         self.ddsigmas = np.zeros((self.model.nq, self.model.nq, self.model.nq, self.dim, self.dim))
 
-    
+    def profiler(func):
+        def wrapper(*args, **kwargs):
+            start = time.time()
+            res = func(*args, **kwargs)
+            print(f'execution frequency of {func.__name__}: {1/(time.time() - start):.4f} Hz')
+            return res
+        return wrapper
+
     def __call__(self, q: np.ndarray, dq: np.ndarray, derivation_order: int = 2):
         pin.forwardKinematics(self.model, self.data, q)
         pin.updateFramePlacements(self.model, self.data)
