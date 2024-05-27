@@ -65,7 +65,7 @@ class Embedding:
     def _derive_wrt_sigma(self, p, mu, sigma):
         inv = np.linalg.inv(sigma)
         d = self.x - mu
-        return 0.5 * p * (-inv + inv @ d @ d.transpose((0, 2, 1)) @ inv)
+        return 0.5 * p * (inv @ d @ d.transpose((0, 2, 1)) @ inv)
     
     def _derive_wrt_q_mu(self, gradient, p, sigma_inv, dsigma_inv, mu, dmu):
         a = np.einsum('bq,bij->qi', gradient, sigma_inv @ (self.x - mu))
@@ -76,12 +76,11 @@ class Embedding:
     def _derive_wrt_q_sigma(self, gradient, p, sigma_inv, dsigma_inv, mu, dmu):
         d = self.x - mu
         a = 0.5 * np.einsum('bq,bij->ijq', gradient, (-sigma_inv + sigma_inv @ d @ d.transpose((0, 2, 1)) @ sigma_inv))
-        b1 = - dsigma_inv
-        b2 = np.einsum('mnk, bnp -> mpk', dsigma_inv, d @ d.transpose(0, 2, 1) @ sigma_inv)
-        b3 = np.einsum('bmn,npk->mpk', sigma_inv @ d @ d.transpose(0, 2, 1), dsigma_inv)
-        b4 = np.einsum('mk, bpn->mnk', -sigma_inv @ dmu, d.transpose(0,2, 1) @ sigma_inv)
-        b5 = np.einsum('bmp, kn->mnk', -sigma_inv @ d, dmu.T @ sigma_inv)
-        b = 0.5 * p * (b1 + b2 + b3 + b4 + b5)
+        b1 = np.einsum('mnk, bnp -> mpk', dsigma_inv, d @ d.transpose(0, 2, 1) @ sigma_inv)
+        b2 = np.einsum('bmn,npk->mpk', sigma_inv @ d @ d.transpose(0, 2, 1), dsigma_inv)
+        b3 = np.einsum('mk, bpn->mnk', -sigma_inv @ dmu, d.transpose(0,2, 1) @ sigma_inv)
+        b4 = np.einsum('bmp, kn->mnk', -sigma_inv @ d, dmu.T @ sigma_inv)
+        b = 0.5 * p * (b1 + b2 + b3 + b4)
         return a + b
 
     @property
