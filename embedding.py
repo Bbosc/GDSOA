@@ -8,6 +8,7 @@ class Embedding:
         self.dim = dimension
         self.fk = fk
         self.x = x
+        assert self.x.ndim == 3, "X must be 3 dimensional : #obstacles, cartesian_dim, 1"
         self._value = 0
         self.gradient = np.zeros((1, self.dim))
         self.hessian = np.zeros((self.dim, self.dim))
@@ -33,11 +34,11 @@ class Embedding:
         res = prefix * np.exp(exp)
         return res
     
-    def derive(self, q, dq):
+    def derive(self, q, dq, sigma):
         # update the value of the covariances and centroids
         mus, sigmas, dmus, dsigmas, ddmus, ddsigmas = self.fk(q, dq)
         self.update_parameters(mu=mus, sigma=sigmas)
-        p = self.compute_value()
+        p = sigma * self.compute_value()
         sigma_inv = np.linalg.inv(self.nsigma)
         dsigma_inv = np.einsum('kmn, knpo, kpq -> kmqo', -sigma_inv, dsigmas, sigma_inv)
         dpdmu = self._derive_wrt_mu_m(p)

@@ -16,6 +16,7 @@ class DynamicalSystem:
         self.christ_logger = []
         self.hessian_logger = []
         self.metric_logger = []
+        self.gr_logger = []
 
     def __call__(self, x, dx):
         ddx = self.compute_acceleration(x.copy(), dx.copy())
@@ -30,22 +31,24 @@ class DynamicalSystem:
         return wrapper
 
     def compute_acceleration(self, x, dx):
-        embedding_gradient, embedding_hessian = self.embedding.derive(x, dx)
+        sigma, gr = self.compute_dynamical_weights(x, horizon=np.pi/1000)
+        embedding_gradient, embedding_hessian = self.embedding.derive(x, dx, sigma)
         self.gradient_logger.append(embedding_gradient)
         self.hessian_logger.append(embedding_hessian)
         metric = self.compute_metric(embedding_gradient)
         self.metric_logger.append(metric)
         christoffel = self.compute_christoffel(metric, embedding_gradient, embedding_hessian)
         self.christ_logger.append(christoffel)
-        sigma = self.compute_dynamical_weights(x)
-        # sigma = 0
-        if sigma > 0.9: # only temporary. It's to avoid stucking the trajectory behind the obstacle
-            metric = np.eye(x.shape[0])
+        self.gr_logger.append(gr)
+        # sigma = min(1, np.linalg.norm(embedding_gradient))
+        # if sigma > 0.9: # only temporary. It's to avoid stucking the trajectory behind the obstacle
+        #     metric = np.eye(x.shape[0])
         harmonic = - np.linalg.inv(metric) @ self.stiffness @ (x - self.attractor) - self.dissipation @ dx
         geodesic = - np.einsum('qij,i->qj', christoffel, dx) @ dx
         self.speed_logger.append(dx)
         self.weight_logger.append(sigma)
-        return sigma * harmonic + (1-sigma) * geodesic
+        # return harmonic + geodesic
+        return (1-sigma)*harmonic + geodesic
     
     def integrate(self, x, dx, ddx):
         new_dx = dx + ddx * self.dt
@@ -65,14 +68,17 @@ class DynamicalSystem:
     def derive_metric(embedding_gradient: np.linalg.inv, embedding_hessian: np.linalg.inv)->np.ndarray:
         return np.einsum('pq,r->pqr', embedding_hessian, embedding_gradient.squeeze()) + np.einsum('p,qr->pqr', embedding_gradient.squeeze(), embedding_hessian)
     
-    def compute_dynamical_weights(self, x: np.ndarray, horizon: float = 0.02, discretion: int = 5):
+    def compute_dynamical_weights(self, x: np.ndarray, horizon: float = 0.005, discretion: int = 2):
         future_x = x + np.linspace(0, horizon, discretion)[:, np.newaxis].repeat(self.attractor.shape[0], axis=1) * (self.attractor - x)
-        gradient = np.zeros((future_x.shape[0]))
-        for i, p in enumerate(future_x):
-            gradient[i] = self.embedding.value_only(p)
-        gradient = np.gradient(gradient, horizon/discretion)
-        weights = self.generalized_sigmoid(np.max(gradient), b=5, a=1, k=0., m=10)
-        return weights
+        future_p = np.zeros((future_x.shape[0]))
+        for i, q in enumerate(future_x):
+            future_p[i] = self.embedding.value_only(q)
+        # gradient = np.gradient(gradient, horizon/discretion)
+        future_norm = np.linalg.norm(future_p)
+        # weights = self.generalized_sigmoid(np.max(gradient), b=5, a=1, k=0., m=10)
+        weights = 1 if (np.diff(future_p) > 0) else 0
+        # weights = self.generalized_sigmoid(gradient, b=100, a=0, k=1., m=1e-12)
+        return weights, np.diff(future_p)
 
     @staticmethod
     def generalized_sigmoid(x, b=1., a=0., k=1., m=0.):
