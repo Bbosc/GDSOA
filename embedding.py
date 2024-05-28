@@ -47,8 +47,8 @@ class Embedding:
             np.einsum('nkij, kdgj->nkdg', dpdmu, ddmus) + \
             np.einsum('nkijd, kijp->nkdp', self._derive_wrt_q_sigma_m(p, sigma_inv, dsigma_inv, dmus), dsigmas) + \
             np.einsum('nkij,kdgij->nkdg', dpdsigma, ddsigmas)
-        self.hessian = hessian.sum(1).squeeze(0)
-        return self.gradient.sum(1), self.hessian
+        self.hessian = hessian.sum(0).sum(0)
+        return self.gradient.sum(1).sum(0, keepdims=True), self.hessian
     
     def value_only(self, q):
         self.fk(q=q, dq=np.zeros_like(q), derivation_order=0)
