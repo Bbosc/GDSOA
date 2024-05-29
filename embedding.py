@@ -29,7 +29,7 @@ class Embedding:
         return wrapper
 
     def compute_value(self, booster: float = 1):
-        prefix = 1/(np.sqrt(np.power(2*np.pi, self.dim) * np.linalg.det(self.nsigma)))
+        prefix = 1/(np.sqrt(np.power(2*np.pi, self.x.shape[1]) * np.linalg.det(self.nsigma)))
         exp = -0.5*np.einsum('bdij,djk,bdkn->bd', self.diff.transpose(0, 1, 3, 2), np.linalg.inv(self.nsigma), self.diff)
         res = prefix * np.exp(exp)
         return booster * res / self.x.shape[0]
@@ -108,5 +108,5 @@ class Embedding:
     def value(self)->torch.Tensor:
         return self.compute_value()
 
-def smoothener(value, threshold = 1e-1):
-    return np.zeros_like(value) if (value.sum() < threshold) else value
+def smoothener(value, threshold = 1e-3):
+    return np.zeros_like(value) if (value.sum() < threshold) else np.power(value, 0.9)
