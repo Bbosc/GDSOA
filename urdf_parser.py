@@ -22,7 +22,7 @@ class Link:
         self.vector: np.ndarray = points[np.argmax(points[:, 2])] - points[np.argmin(points[:, 2])]
 
 
-def generate_ellipsoid(a=0.25, b=0.25, c=0.5, num_points=1000):
+def generate_ellipsoid(a=0.15, b=0.15, c=0.5, num_points=1000):
     """
     Generates a 3D point cloud representing an ellipsoid.
 

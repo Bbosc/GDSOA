@@ -32,6 +32,7 @@ class DynamicalSystem:
 
     def compute_acceleration(self, x, dx):
         sigma, gr = self.compute_dynamical_weights(x, horizon=np.pi/1000)
+        # sigma = 1
         embedding_gradient, embedding_hessian = self.embedding.derive(x, dx, sigma)
         self.gradient_logger.append(embedding_gradient)
         self.hessian_logger.append(embedding_hessian)
@@ -39,12 +40,12 @@ class DynamicalSystem:
         self.metric_logger.append(metric)
         christoffel = self.compute_christoffel(metric, embedding_gradient, embedding_hessian)
         self.christ_logger.append(christoffel)
-        self.gr_logger.append(gr)
+        # self.gr_logger.append(gr)
         harmonic = - np.linalg.inv(metric) @ self.stiffness @ (x - self.attractor) - self.dissipation @ dx
         geodesic = - np.einsum('qij,i->qj', christoffel, dx) @ dx
         self.speed_logger.append(dx)
         self.weight_logger.append(sigma)
-        # return harmonic + geodesic
+        # return geodesic
         return (1-sigma)*harmonic + geodesic
     
     def integrate(self, x, dx, ddx):
