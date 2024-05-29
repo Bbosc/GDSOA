@@ -40,9 +40,6 @@ class DynamicalSystem:
         christoffel = self.compute_christoffel(metric, embedding_gradient, embedding_hessian)
         self.christ_logger.append(christoffel)
         self.gr_logger.append(gr)
-        # sigma = min(1, np.linalg.norm(embedding_gradient))
-        # if sigma > 0.9: # only temporary. It's to avoid stucking the trajectory behind the obstacle
-        #     metric = np.eye(x.shape[0])
         harmonic = - np.linalg.inv(metric) @ self.stiffness @ (x - self.attractor) - self.dissipation @ dx
         geodesic = - np.einsum('qij,i->qj', christoffel, dx) @ dx
         self.speed_logger.append(dx)
@@ -72,10 +69,7 @@ class DynamicalSystem:
         future_x = x + np.linspace(0, horizon, discretion)[:, np.newaxis].repeat(self.attractor.shape[0], axis=1) * (self.attractor - x)
         future_p = np.zeros((future_x.shape[0]))
         for i, q in enumerate(future_x):
-            future_p[i] = self.embedding.value_only(q)
-        # gradient = np.gradient(gradient, horizon/discretion)
-        future_norm = np.linalg.norm(future_p)
-        # weights = self.generalized_sigmoid(np.max(gradient), b=5, a=1, k=0., m=10)
+            future_p[i] = self.embedding.value_only(q).sum()
         weights = 1 if (np.diff(future_p) > 0) else 0
         # weights = self.generalized_sigmoid(gradient, b=100, a=0, k=1., m=1e-12)
         return weights, np.diff(future_p)

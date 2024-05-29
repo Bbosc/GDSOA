@@ -28,17 +28,17 @@ class Embedding:
             return res
         return wrapper
 
-    def compute_value(self):
+    def compute_value(self, booster: float = 1):
         prefix = 1/(np.sqrt(np.power(2*np.pi, self.dim) * np.linalg.det(self.nsigma)))
         exp = -0.5*np.einsum('bdij,djk,bdkn->bd', self.diff.transpose(0, 1, 3, 2), np.linalg.inv(self.nsigma), self.diff)
         res = prefix * np.exp(exp)
-        return res
+        return booster * res / self.x.shape[0]
     
-    def derive(self, q, dq, sigma):
+    def derive(self, q, dq, dynamic_weight):
         # update the value of the covariances and centroids
         mus, sigmas, dmus, dsigmas, ddmus, ddsigmas = self.fk(q, dq)
         self.update_parameters(mu=mus, sigma=sigmas)
-        p = sigma * self.compute_value()
+        p = dynamic_weight * smoothener(self.compute_value())
         sigma_inv = np.linalg.inv(self.nsigma)
         dsigma_inv = np.einsum('kmn, knpo, kpq -> kmqo', -sigma_inv, dsigmas, sigma_inv)
         dpdmu = self._derive_wrt_mu_m(p)
@@ -54,8 +54,8 @@ class Embedding:
     def value_only(self, q):
         self.fk(q=q, dq=np.zeros_like(q), derivation_order=0)
         self.update_parameters(mu=self.fk.mus, sigma=self.fk.sigmas)
-        p = self.compute_value()
-        return p.sum()
+        p = smoothener(self.compute_value())
+        return p
     
     def _derive_wrt_mu(self, p, mu, sigma):
         return p * np.linalg.inv(sigma) @ (self.x - mu)
@@ -71,7 +71,6 @@ class Embedding:
     def _derive_wrt_sigma_m(self, p):
         inv = np.linalg.inv(self.nsigma)
         return 0.5 * np.einsum('nk, nkij->nkij', p, (inv @ self.diff @ self.diff.transpose(0, 1, 3, 2) @ inv))
-    
     
     def _derive_wrt_q_sigma_m(self, p, sigma_inv, dsigma_inv, dmus):
         d = self.diff.copy()
@@ -105,8 +104,9 @@ class Embedding:
         b = 0.5 * p * (b1 + b2 + b3 + b4)
         return a + b
 
-
-
     @property
     def value(self)->torch.Tensor:
         return self.compute_value()
+
+def smoothener(value, threshold = 1e-1):
+    return np.zeros_like(value) if (value.sum() < threshold) else value
