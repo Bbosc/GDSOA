@@ -9,25 +9,32 @@ class URDFParser:
     def __init__(self, urdf_file: str) -> None:
         self.model = pin.buildModelFromUrdf(urdf_file)
         self.data = self.model.createData()
+        config_start = pin.neutral(self.model)
+        pin.forwardKinematics(self.model, self.data, config_start)
+        pin.updateFramePlacements(self.model, self.data)
         if self.model.name == 'panda':
             stl_path = Path(__file__).parent / 'franka_description/meshes/visual'
-            self.links = [Link(stl_file=stl_path/ f'visual_link{i}.stl') for i in range(self.model.nq)]
+            links = list(filter(lambda frame: 'panda_link' in frame.name, self.model.frames))
+            links_ids = [self.model.getFrameId(frame.name) for frame in links]
+            self.links = [Link(stl_file=stl_path/ f'visual_link{i}.stl',
+                               rotation=self.data.oMf[links_ids[i]].rotation,
+                               translation=self.data.oMf[links_ids[i]].translation) for i in range(self.model.nq)]
         else:
             self.links = [Link() for _ in range(self.model.nq)]
 
 
 class Link:
-    def __init__(self, stl_file: str = None, n_components: int = 1) -> None:
+    def __init__(self, stl_file: str = None, rotation: np.ndarray = None, translation: np.ndarray = None, n_components: int = 1) -> None:
         if stl_file is None:
             points = generate_ellipsoid().T[[0, 2, 1]].T
         else:
             points = self.get_point_from_stl(stl_file)
         self.points = points.copy()
         gmm = GaussianMixture(n_components=n_components)
-        gmm.fit(points)
+        gmm.fit(self.points)
         self.means: np.ndarray = gmm.means_.transpose(1, 0)
         self.priors: np.ndarray = gmm.weights_
-        self.covs: np.ndarray = gmm.covariances_
+        self.covs: np.ndarray = rotation @ gmm.covariances_ @ rotation.T
         self.vector: np.ndarray = points[np.argmax(points[:, 2])] - points[np.argmin(points[:, 2])]
 
     def get_point_from_stl(self, stl_file: str, surface_resolution: int = 1):
