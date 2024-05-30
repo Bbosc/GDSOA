@@ -22,6 +22,7 @@ class Link:
             points = generate_ellipsoid().T[[0, 2, 1]].T
         else:
             points = self.get_point_from_stl(stl_file)
+        self.points = points.copy()
         gmm = GaussianMixture(n_components=n_components)
         gmm.fit(points)
         self.means: np.ndarray = gmm.means_.transpose(1, 0)
@@ -29,10 +30,37 @@ class Link:
         self.covs: np.ndarray = gmm.covariances_
         self.vector: np.ndarray = points[np.argmax(points[:, 2])] - points[np.argmin(points[:, 2])]
 
-    def get_point_from_stl(self, stl_file: str):
+    def get_point_from_stl(self, stl_file: str, surface_resolution: int = 1):
         mesh = meshlib.Mesh.from_file(stl_file)
-        points = mesh.points[:, :3]
-        return points
+        surface_points = mesh.points[:, :3]
+        surfaces = np.array_split(surface_points[np.argsort(surface_points[:, 2])], surface_resolution)
+        volumes = []
+        for surface in surfaces:
+            inside = self._fill_surface(surface, resolution=5)
+            volumes.append(inside)
+        return np.concatenate(volumes + [surface_points], axis=0)
+
+    def _fill_surface(self, surface: np.ndarray, resolution: int = 10):
+        x = np.linspace(min(surface[:, 0]), max(surface[:, 0]), resolution)
+        y = np.linspace(min(surface[:, 1]), max(surface[:, 1]), resolution)
+        z = np.linspace(min(surface[:, 2]), max(surface[:, 2]), resolution)
+        grid = np.meshgrid(x, y, z)
+        flat_grid = np.stack((grid[0].ravel(), grid[1].ravel(), grid[2].ravel())).T
+        directions = np.zeros((flat_grid.shape[0]))
+        center = self._surface_center(surface)
+        for i in range(flat_grid.shape[0]):
+            closest_index = np.argmin(np.linalg.norm(surface - flat_grid[i], axis=1))
+            diff = flat_grid[i] - surface[closest_index]
+            directions[i] = np.dot(diff-center, surface[closest_index]-center)
+        return flat_grid[np.where(directions<0.)]
+
+    @staticmethod
+    def _surface_center(surface):
+        center_x = np.min(surface[:,0])-(np.min(surface[:,0]) - np.max(surface[:,0]))/2
+        center_y = np.min(surface[:,1])-(np.min(surface[:,1]) - np.max(surface[:,1]))/2
+        center_z = np.min(surface[:,2])-(np.min(surface[:,2]) - np.max(surface[:,2]))/2
+        return np.array([center_x, center_y, center_z])
+    
 
 def generate_ellipsoid(a=0.25, b=0.25, c=0.5, num_points=1000):
     """
