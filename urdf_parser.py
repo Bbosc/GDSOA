@@ -1,5 +1,7 @@
+from pathlib import Path
 import numpy as np
 import pinocchio as pin
+from stl import mesh as meshlib
 from sklearn.mixture import GaussianMixture
 
 
@@ -7,13 +9,19 @@ class URDFParser:
     def __init__(self, urdf_file: str) -> None:
         self.model = pin.buildModelFromUrdf(urdf_file)
         self.data = self.model.createData()
-        self.links = [Link() for _ in range(self.model.nq)]
+        if self.model.name == 'panda':
+            stl_path = Path(__file__).parent / 'franka_description/meshes/visual'
+            self.links = [Link(stl_file=stl_path/ f'visual_link{i}.stl') for i in range(self.model.nq)]
+        else:
+            self.links = [Link() for _ in range(self.model.nq)]
 
 
 class Link:
     def __init__(self, stl_file: str = None, n_components: int = 1) -> None:
         if stl_file is None:
             points = generate_ellipsoid().T[[0, 2, 1]].T
+        else:
+            points = self.get_point_from_stl(stl_file)
         gmm = GaussianMixture(n_components=n_components)
         gmm.fit(points)
         self.means: np.ndarray = gmm.means_.transpose(1, 0)
@@ -21,6 +29,10 @@ class Link:
         self.covs: np.ndarray = gmm.covariances_
         self.vector: np.ndarray = points[np.argmax(points[:, 2])] - points[np.argmin(points[:, 2])]
 
+    def get_point_from_stl(self, stl_file: str):
+        mesh = meshlib.Mesh.from_file(stl_file)
+        points = mesh.points[:, :3]
+        return points
 
 def generate_ellipsoid(a=0.25, b=0.25, c=0.5, num_points=1000):
     """

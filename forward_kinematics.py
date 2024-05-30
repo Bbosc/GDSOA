@@ -38,7 +38,7 @@ class ForwardKinematic:
         ddR_ddqs = []
 
         for i in range(self.model.nq):
-            link_id = self.model.getFrameId(f'link{i+1}')
+            link_id = self.model.getFrameId(f'panda_link{i+1}')
             rotation = self.data.oMf[link_id].rotation
             link_rotation = np.linalg.inv(rotations[-1]) @ rotation if i > 0 else rotation
             rotations.append(rotation)
