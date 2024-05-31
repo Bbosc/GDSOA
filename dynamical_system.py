@@ -17,6 +17,8 @@ class DynamicalSystem:
         self.hessian_logger = []
         self.metric_logger = []
         self.gr_logger = []
+        self.a_logger = []
+        self.b_logger = []
 
     def __call__(self, x, dx):
         ddx = self.compute_acceleration(x.copy(), dx.copy())
@@ -32,7 +34,12 @@ class DynamicalSystem:
 
     def compute_acceleration(self, x, dx):
         sigma, gr = self.compute_dynamical_weights(x, horizon=np.pi/1000)
+        # sigma = 1
         embedding_gradient, embedding_hessian = self.embedding.derive(x, dx, sigma)
+
+        a, b = self.work(x, x_gradient=embedding_gradient)
+        self.a_logger.append(a)
+        self.b_logger.append(b)
         self.gradient_logger.append(embedding_gradient)
         self.hessian_logger.append(embedding_hessian)
         metric = self.compute_metric(embedding_gradient)
@@ -78,3 +85,8 @@ class DynamicalSystem:
     def generalized_sigmoid(x, b=1., a=0., k=1., m=0.):
         c = min(-b*(x-m), 20) # to avoid overflow in exp
         return (k-a) / (1 + np.exp(c)) + a
+
+    def work(self, x, x_gradient):
+        a = np.dot(x_gradient, x-self.attractor)
+        b = x_gradient
+        return a, b
