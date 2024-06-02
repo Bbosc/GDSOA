@@ -17,8 +17,8 @@ class DynamicalSystem:
         self.hessian_logger = []
         self.metric_logger = []
         self.gr_logger = []
-        self.a_logger = []
-        self.b_logger = []
+        self.gradient_sign = None
+        self.sigma = 0
 
     def __call__(self, x, dx):
         ddx = self.compute_acceleration(x.copy(), dx.copy())
@@ -33,26 +33,26 @@ class DynamicalSystem:
         return wrapper
 
     def compute_acceleration(self, x, dx):
-        sigma, gr = self.compute_dynamical_weights(x, horizon=np.pi/1000)
-        # sigma = 1
-        embedding_gradient, embedding_hessian = self.embedding.derive(x, dx, sigma)
-
-        a, b = self.work(x, x_gradient=embedding_gradient)
-        self.a_logger.append(a)
-        self.b_logger.append(b)
+        # sigma, gr = self.compute_dynamical_weights(x, horizon=np.pi/1000)
+        embedding_gradient, embedding_hessian = self.embedding.derive(x, dx, 1)
+        if self.gradient_sign is None:
+            self.gradient_sign = np.sign(embedding_gradient)
+        else:
+            if any((np.sign(embedding_gradient) != self.gradient_sign).squeeze()):
+                self.gradient_sign = np.sign(embedding_gradient)
+                self.sigma = not(self.sigma)
         self.gradient_logger.append(embedding_gradient)
         self.hessian_logger.append(embedding_hessian)
         metric = self.compute_metric(embedding_gradient)
         self.metric_logger.append(metric)
         christoffel = self.compute_christoffel(metric, embedding_gradient, embedding_hessian)
         self.christ_logger.append(christoffel)
-        self.gr_logger.append(gr)
         harmonic = - np.linalg.inv(metric) @ self.stiffness @ (x - self.attractor) - self.dissipation @ dx
         geodesic = - np.einsum('qij,i->qj', christoffel, dx) @ dx
         self.speed_logger.append(dx)
-        self.weight_logger.append(sigma)
+        self.weight_logger.append(self.sigma)
         # return harmonic + geodesic
-        return (1-sigma)*harmonic + geodesic
+        return (1-self.sigma)*harmonic + geodesic
     
     def integrate(self, x, dx, ddx):
         new_dx = dx + ddx * self.dt
@@ -72,12 +72,13 @@ class DynamicalSystem:
     def derive_metric(embedding_gradient: np.linalg.inv, embedding_hessian: np.linalg.inv)->np.ndarray:
         return np.einsum('pq,r->pqr', embedding_hessian, embedding_gradient.squeeze()) + np.einsum('p,qr->pqr', embedding_gradient.squeeze(), embedding_hessian)
     
-    def compute_dynamical_weights(self, x: np.ndarray, horizon: float = 0.005, discretion: int = 2):
+    def compute_dynamical_weights(self, x: np.ndarray, horizon: float = 0.005, discretion: int = 3):
         future_x = x + np.linspace(0, horizon, discretion)[:, np.newaxis].repeat(self.attractor.shape[0], axis=1) * (self.attractor - x)
         future_p = np.zeros((future_x.shape[0]))
         for i, q in enumerate(future_x):
             future_p[i] = self.embedding.value_only(q).sum()
-        weights = 1 if (np.diff(future_p) > 0) else 0
+        # weights = 1 if (np.sign(np.diff(future_p)[0]) != np.sign(np.diff(future_p)[1])) else 0
+        weights = 1 if (np.sign(np.diff(future_p)[0]) != np.sign(np.diff(future_p)[1])) else 0
         # weights = self.generalized_sigmoid(gradient, b=100, a=0, k=1., m=1e-12)
         return weights, np.diff(future_p)
 

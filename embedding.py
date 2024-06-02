@@ -108,5 +108,5 @@ class Embedding:
     def value(self)->torch.Tensor:
         return self.compute_value()
 
-def smoothener(value, threshold = 1e-8):
+def smoothener(value, threshold = 1e-3):
     return np.zeros_like(value) if (value.sum() < threshold) else value
