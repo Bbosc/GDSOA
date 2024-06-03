@@ -11,19 +11,7 @@ class Embedding:
         self._value = 0
         self.gradient = np.zeros((1, self.dim))
         self.hessian = np.zeros((self.dim, self.dim))
-        self.limits = self.squared_limits(limits, res=50)
-    
-    @staticmethod
-    def squared_limits(limits, res=10):
-        center = np.array([np.sum(limits)/2, np.sum(limits)/2])
-        q_min, q_max = limits[0], limits[1]
-        y, x = np.meshgrid(np.linspace(q_min, q_max, res), np.linspace(q_min, q_max, res))
-        return center + np.unique(np.stack((np.concatenate((x[0, :], x[-1, :], x[:, 0], x[:, -1])), np.concatenate((y[0, :], y[-1, :], y[:, 0], y[:, -1]))), axis=1), axis=0)
-
-    @staticmethod
-    def generalized_sigmoid(x, b=1., a=0., k=1., m=0.):
-        c = min(-b*(x-m), 20) # to avoid overflow in exp
-        return (k-a) / (1 + np.exp(c)) + a
+        self.limits = np.array([[limit['lower'], limit['upper']] for limit in limits]).T
     
     def update_parameters(self, mu, sigma):
         self.nmu = mu[:, :, np.newaxis]
@@ -41,9 +29,13 @@ class Embedding:
         return wrapper
 
     def limit_embedding(self, q, booster: int = 10):
-        distances_to_limits = np.linalg.norm(q-self.limits, axis=1)
-        v = distances_to_limits[np.argsort(distances_to_limits)][:5].sum()
-        return self.generalized_sigmoid(v, a=v, k=0, m=1, b=5)*booster
+        measure = np.abs((1/(q - self.limits).T).sum(1))
+        return booster * self.generalized_sigmoid(measure, b=1, m=10)
+
+    @staticmethod
+    def generalized_sigmoid(x, b=1., a=0., k=1., m=0.):
+        c = -b*(x-m) # to avoid overflow in exp
+        return (k-a) / (1 + np.exp(c)) + a
 
     def compute_value(self, booster: float = 1):
         prefix = 1/(np.sqrt(np.power(2*np.pi, self.x.shape[1]) * np.linalg.det(self.nsigma)))
