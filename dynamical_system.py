@@ -47,6 +47,7 @@ class DynamicalSystem:
         self.speed_logger.append(dx)
         self.weight_logger.append(sigma)
         # return harmonic + geodesic
+        return geodesic
         return (1-sigma)*harmonic + sigma * geodesic
     
     def integrate(self, x, dx, ddx):
@@ -72,7 +73,7 @@ class DynamicalSystem:
         # future_p = np.zeros((future_x.shape[0]))
         # for i, q in enumerate(future_x):
         #     future_p[i] = self.embedding.value_only(q).sum()
-        # weights = 1 if (np.diff(future_p) > 0) else 0
+        # weights = 1 if (np.gradient(future_p) > 10) else 0
         weights = self.generalized_sigmoid(np.linalg.norm(gradient, axis=1), b=10, a=0, k=1., m=10)
         return weights
 

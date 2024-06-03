@@ -28,7 +28,7 @@ class Embedding:
             return res
         return wrapper
 
-    def limit_embedding(self, q, booster: int = 10):
+    def limit_embedding(self, q, booster: int = 0):
         measure = np.abs((1/(q - self.limits).T).sum(1))
         return booster * self.generalized_sigmoid(measure, b=1, m=10)
 
@@ -49,8 +49,8 @@ class Embedding:
         mus, sigmas, dmus, dsigmas, ddmus, ddsigmas = self.fk(q, dq)
         self.update_parameters(mu=mus, sigma=sigmas)
         # compute the embedding value
-        limit_embedding = smoothener(self.limit_embedding(q))
-        obstacle_embedding = smoothener(self.compute_value())
+        limit_embedding = self.limit_embedding(q)
+        obstacle_embedding = self.compute_value()
         p = dynamic_weight * obstacle_embedding + limit_embedding
         # derivative of the embedding
         sigma_inv = np.linalg.inv(self.nsigma)
