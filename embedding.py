@@ -1,10 +1,9 @@
 import time
-import torch
 import numpy as np
 from forward_kinematics import ForwardKinematic
 
 class Embedding:
-    def __init__(self, dimension: int, x: torch.Tensor, fk: ForwardKinematic):
+    def __init__(self, dimension: int, x: np.ndarray, fk: ForwardKinematic, limits: np.ndarray):
         self.dim = dimension
         self.fk = fk
         self.x = x
@@ -12,6 +11,7 @@ class Embedding:
         self._value = 0
         self.gradient = np.zeros((1, self.dim))
         self.hessian = np.zeros((self.dim, self.dim))
+        self.limits = np.array([[limit['lower'], limit['upper']] for limit in limits]).T
     
     def update_parameters(self, mu, sigma):
         self.nmu = mu[:, :, np.newaxis]
@@ -28,22 +28,37 @@ class Embedding:
             return res
         return wrapper
 
+    def limit_embedding(self, q, booster: int = 10):
+        measure = np.abs((1/(q - self.limits).T).sum(1))
+        return booster * self.generalized_sigmoid(measure, b=1, m=10)
+
+    @staticmethod
+    def generalized_sigmoid(x, b=1., a=0., k=1., m=0.):
+        c = -b*(x-m) # to avoid overflow in exp
+        return (k-a) / (1 + np.exp(c)) + a
+
     def compute_value(self, booster: float = 1):
         prefix = 1/(np.sqrt(np.power(2*np.pi, self.x.shape[1]) * np.linalg.det(self.nsigma)))
         exp = -0.5*np.einsum('bdij,djk,bdkn->bd', self.diff.transpose(0, 1, 3, 2), np.linalg.inv(self.nsigma), self.diff)
         res = prefix * np.exp(exp)
-        return booster * res / self.x.shape[0]
+        obstacle_embedding = res / self.x.shape[0]
+        return booster * obstacle_embedding
     
     def derive(self, q, dq, dynamic_weight):
         # update the value of the covariances and centroids
         mus, sigmas, dmus, dsigmas, ddmus, ddsigmas = self.fk(q, dq)
         self.update_parameters(mu=mus, sigma=sigmas)
-        p = dynamic_weight * smoothener(self.compute_value())
+        # compute the embedding value
+        limit_embedding = smoothener(self.limit_embedding(q))
+        obstacle_embedding = smoothener(self.compute_value())
+        p = dynamic_weight * obstacle_embedding + limit_embedding
+        # derivative of the embedding
         sigma_inv = np.linalg.inv(self.nsigma)
         dsigma_inv = np.einsum('kmn, knpo, kpq -> kmqo', -sigma_inv, dsigmas, sigma_inv)
         dpdmu = self._derive_wrt_mu_m(p)
         dpdsigma = self._derive_wrt_sigma_m(p)
         self.gradient = (dpdmu @ dmus).squeeze(2) + np.einsum('nkij, kijd -> nkd', dpdsigma, dsigmas)
+        # second derivative of the embedding
         hessian = np.einsum('nkijd, kjig -> nkdg', self._derive_wrt_q_mu_m(p, sigma_inv, dsigma_inv, dmus), dmus[:, :, np.newaxis]) + \
             np.einsum('nkij, kdgj->nkdg', dpdmu, ddmus) + \
             np.einsum('nkijd, kijp->nkdp', self._derive_wrt_q_sigma_m(p, sigma_inv, dsigma_inv, dmus), dsigmas) + \
@@ -54,7 +69,7 @@ class Embedding:
     def value_only(self, q):
         self.fk(q=q, dq=np.zeros_like(q), derivation_order=0)
         self.update_parameters(mu=self.fk.mus, sigma=self.fk.sigmas)
-        p = smoothener(self.compute_value())
+        p = self.compute_value() + self.limit_embedding(q)
         return p
     
     def _derive_wrt_mu(self, p, mu, sigma):
@@ -105,8 +120,8 @@ class Embedding:
         return a + b
 
     @property
-    def value(self)->torch.Tensor:
+    def value(self)->np.ndarray:
         return self.compute_value()
 
-def smoothener(value, threshold = 1e-8):
-    return np.zeros_like(value) if (value.sum() < threshold) else value 
+def smoothener(value, threshold = 5e-2):
+    return np.zeros_like(value) if (value.sum() < threshold) else value
