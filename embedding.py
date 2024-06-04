@@ -13,6 +13,7 @@ class Embedding:
         self.hessian = np.zeros((self.dim, self.dim))
         self.limits = np.array([[limit['lower'], limit['upper']] for limit in limits]).T
         self.p_logger = []
+        self.p : np.ndarray = None
     
     def update_parameters(self, mu, sigma):
         self.nmu = mu[:, :, np.newaxis]
@@ -57,6 +58,7 @@ class Embedding:
         limit_embedding = self.limit_embedding(q)
         obstacle_embedding = self.compute_value()
         p = dynamic_weight * obstacle_embedding + limit_embedding
+        self.p = p.sum(1)
         self.p_logger.append(p)
         # derivative of the embedding
         sigma_inv = np.linalg.inv(self.nsigma)
