@@ -9,6 +9,7 @@ class DynamicalSystem:
         self.dissipation = dissipation
         self.attractor = attractor
         self.embedding = embedding
+        self.speed_limits = np.ones_like(attractor) * 2.62
         self.dt = dt
         self.gradient_logger = []
         self.weight_logger = []
@@ -32,7 +33,7 @@ class DynamicalSystem:
 
     def compute_acceleration(self, x, dx):
         sigma, gr = self.compute_dynamical_weights(x, horizon=np.pi/1000)
-        # sigma = 1
+        sigma = 1
         embedding_gradient, embedding_hessian = self.embedding.derive(x, dx, sigma)
         self.gradient_logger.append(embedding_gradient)
         self.hessian_logger.append(embedding_hessian)
@@ -43,15 +44,19 @@ class DynamicalSystem:
         # self.gr_logger.append(gr)
         harmonic = - np.linalg.inv(metric) @ self.stiffness @ (x - self.attractor) - self.dissipation @ dx
         geodesic = - np.einsum('qij,i->qj', christoffel, dx) @ dx
+        new_geodesic = self.new_geodesic(T=self.new_christoffel(metric, embedding_gradient, embedding_hessian, dx), dx=dx)
         self.speed_logger.append(dx)
         self.weight_logger.append(sigma)
-        # return geodesic
+        # return new_geodesic
+        return geodesic
         return (1-sigma)*harmonic + geodesic
     
     def integrate(self, x, dx, ddx):
         new_dx = dx + ddx * self.dt
-        new_x = x + new_dx * self.dt
-        return new_x, new_dx
+        capped_speed = np.maximum(new_dx, -self.speed_limits)
+        capped_speed = np.minimum(capped_speed, self.speed_limits)
+        new_x = x + capped_speed * self.dt
+        return new_x, capped_speed
 
     def compute_metric(self, embedding_gradient)->np.ndarray:
         d = embedding_gradient.shape[1]
@@ -61,6 +66,33 @@ class DynamicalSystem:
         dm = self.derive_metric(embedding_gradient, embedding_hessian).transpose(0, 2, 1)
         im = np.linalg.inv(metric)
         return 0.5 * (np.einsum('qm,mji->qji', im, dm + dm.transpose(0,2,1)) - np.einsum('qm,ijm->qij', im, dm))
+        
+    def new_christoffel(self, metric, embedding_gradient, embedding_hessian, dx):
+        dm = self.new_derive_metric(embedding_gradient.T, embedding_hessian).transpose(0, 2, 1)
+        inv = np.linalg.inv(metric)
+        T = np.zeros((2, 2, 2))
+        for j in range(dx.shape[0]):
+            for l in range(metric.shape[0]):
+                for k in range(metric.shape[0]):
+                    Tlk = 0
+                    for m in range(dx.shape[0]):
+                        Tlk += 0.5 * inv[j, m] * (dm[m, l, k] + dm[m, k, l] - dm[l, k, m])
+                    T[j, l, k] = Tlk
+        return T
+
+    def new_geodesic(self, T, dx):
+        ddx = np.zeros_like(dx)
+        for j in range(dx.shape[0]):
+            for l in range(dx.shape[0]):
+                for k in range(dx.shape[0]):
+                    ddx[j] += - T[j, l, k] * dx[l] * dx[k]
+        return ddx
+
+    def new_derive_metric(self, embedding_gradient, embedding_hessian):
+        d = embedding_gradient.shape[0]
+        return np.kron(embedding_hessian, embedding_gradient.T).reshape((d, d, d)) + np.kron(embedding_gradient, embedding_hessian.T).reshape((d, d, d))
+                
+
 
     @staticmethod
     def derive_metric(embedding_gradient: np.linalg.inv, embedding_hessian: np.linalg.inv)->np.ndarray:

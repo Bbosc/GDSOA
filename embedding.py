@@ -12,6 +12,7 @@ class Embedding:
         self.gradient = np.zeros((1, self.dim))
         self.hessian = np.zeros((self.dim, self.dim))
         self.limits = np.array([[limit['lower'], limit['upper']] for limit in limits]).T
+        self.p_logger = []
     
     def update_parameters(self, mu, sigma):
         self.nmu = mu[:, :, np.newaxis]
@@ -29,8 +30,12 @@ class Embedding:
         return wrapper
 
     def limit_embedding(self, q, booster: int = 10):
-        measure = np.abs((1/(q - self.limits).T).sum(1))
-        return booster * self.generalized_sigmoid(measure, b=1, m=10)
+        # measure = np.abs(((q - self.limits).T))
+        upper_bound = 10 / (1 + np.power(np.exp(10*(self.limits[1] - q)), 4))
+        lower_bound = 10 / (1 + np.power(np.exp(10*(q - self.limits[0])), 4))
+        return upper_bound + lower_bound
+        # return np.exp(-(measure - 0.002)**2).sum(1)
+        # return booster * self.generalized_sigmoid(1/measure, b=1, m=10)
 
     @staticmethod
     def generalized_sigmoid(x, b=1., a=0., k=1., m=0.):
@@ -49,9 +54,10 @@ class Embedding:
         mus, sigmas, dmus, dsigmas, ddmus, ddsigmas = self.fk(q, dq)
         self.update_parameters(mu=mus, sigma=sigmas)
         # compute the embedding value
-        limit_embedding = smoothener(self.limit_embedding(q))
-        obstacle_embedding = smoothener(self.compute_value())
+        limit_embedding = self.limit_embedding(q)
+        obstacle_embedding = self.compute_value()
         p = dynamic_weight * obstacle_embedding + limit_embedding
+        self.p_logger.append(p)
         # derivative of the embedding
         sigma_inv = np.linalg.inv(self.nsigma)
         dsigma_inv = np.einsum('kmn, knpo, kpq -> kmqo', -sigma_inv, dsigmas, sigma_inv)
@@ -69,7 +75,7 @@ class Embedding:
     def value_only(self, q):
         self.fk(q=q, dq=np.zeros_like(q), derivation_order=0)
         self.update_parameters(mu=self.fk.mus, sigma=self.fk.sigmas)
-        p = smoothener(self.compute_value()) + smoothener(self.limit_embedding(q))
+        p = self.compute_value() + self.limit_embedding(q)
         return p
     
     def _derive_wrt_mu(self, p, mu, sigma):
