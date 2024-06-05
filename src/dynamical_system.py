@@ -17,6 +17,7 @@ class DynamicalSystem:
         self.x_logger = []
         self.dx_logger = []
         self.ddx_logger = []
+        self.correction_logger = []
 
     def __call__(self, x, dx):
         ddx = self.compute_acceleration(x.copy(), dx.copy())
@@ -44,10 +45,12 @@ class DynamicalSystem:
         return geodesic
     
     def integrate(self, x, dx, ddx):
-        self.ddx_logger.append(ddx)
         new_dx = dx + ddx * self.dt
-        self.dx_logger.append(new_dx)
         new_x = x + new_dx * self.dt
+
+        # loggers
+        self.ddx_logger.append(ddx)
+        self.dx_logger.append(new_dx)
         self.x_logger.append(new_x)
         return new_x, new_dx
 
