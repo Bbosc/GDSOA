@@ -55,9 +55,9 @@ class DynamicalSystem:
         # geodesic = self.new_geodesic(T=self.new_christoffel(metric, embedding_gradient, embedding_hessian, dx), dx=dx)
         self.speed_logger.append(dx)
         self.weight_logger.append(sigma)
-        # delta = 0 if self.embedding.p < 1e-5 else 1
+        # return harmonic + geodesic
         return geodesic
-        # return (1-sigma)*harmonic + geodesic
+        return (1-sigma)*harmonic + sigma * geodesic
     
     def integrate(self, x, dx, ddx):
         new_dx = dx + ddx * self.dt

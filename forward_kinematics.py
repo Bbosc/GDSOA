@@ -18,6 +18,18 @@ class ForwardKinematic:
         self.dsigmas = np.zeros((self.model.nq, self.dim, self.dim, self.model.nq))
         self.ddmus = np.zeros((self.model.nq, self.model.nq, self.model.nq, self.dim))
         self.ddsigmas = np.zeros((self.model.nq, self.model.nq, self.model.nq, self.dim, self.dim))
+        self.rotation_offsets, self.translation_offsets = self._get_offset_transformations()
+    
+    def _get_offset_transformations(self):
+        neutral = pin.neutral(self.model)
+        pin.forwardKinematics(self.model, self.data, neutral)
+        pin.updateFramePlacements(self.model, self.data)
+        links = list(filter(lambda frame: 'panda_link' in frame.name, self.model.frames))
+        link_ids = [self.model.getFrameId(frame.name) for frame in links]
+        rotation_offsets = [self.data.oMf[i].rotation for i in link_ids]
+        translation_offsets = [self.data.oMf[i].translation for i in link_ids]
+        return rotation_offsets, translation_offsets
+        
 
     def profiler(func):
         def wrapper(*args, **kwargs):
@@ -38,7 +50,7 @@ class ForwardKinematic:
         ddR_ddqs = []
 
         for i in range(self.model.nq):
-            link_id = self.model.getFrameId(f'link{i+1}')
+            link_id = self.model.getFrameId(f'panda_link{i}')
             rotation = self.data.oMf[link_id].rotation
             link_rotation = np.linalg.inv(rotations[-1]) @ rotation if i > 0 else rotation
             rotations.append(rotation)
@@ -46,7 +58,10 @@ class ForwardKinematic:
             translation = self.data.oMf[link_id].translation
             # computing the new mu and sigma
             self.sigmas[i] = rotation @ self.links[i].covs @ rotation.transpose(1, 0)
+            # offseted_covs = self.rotation_offsets[i] @ self.links[i].covs @ self.rotation_offsets[i].T
+            # self.sigmas[i] = rotation @ offseted_covs @ rotation.transpose(1, 0)
             self.mus[i] = translation + (rotation @ self.links[i].means).reshape(translation.shape)
+            # self.mus[i] = np.dot(translation + (rotation @ self.links[i].means).reshape(translation.shape), self.rotation_offsets[i].T)
             # computing the first order derivative of mu and sigma
             if derivation_order > 0:
                 Js.append(pin.computeFrameJacobian(self.model, self.data, q, link_id))

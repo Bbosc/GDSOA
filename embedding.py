@@ -49,6 +49,8 @@ class Embedding:
         res = prefix * np.exp(exp)
         obstacle_embedding = res / self.x.shape[0]
         return booster * obstacle_embedding
+        obstacle_embedding = res / self.x.shape[0]
+        return booster * obstacle_embedding
     
     def derive(self, q, dq, dynamic_weight):
         # update the value of the covariances and centroids
