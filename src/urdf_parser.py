@@ -13,7 +13,7 @@ class URDFParser:
         pin.forwardKinematics(self.model, self.data, config_start)
         pin.updateFramePlacements(self.model, self.data)
         if self.model.name == 'panda':
-            stl_path = Path(__file__).parent / 'franka_description/meshes/visual'
+            stl_path = Path(__file__).parent.parent / 'franka_description/meshes/visual'
             links = list(filter(lambda frame: 'panda_link' in frame.name, self.model.frames))
             links_ids = [self.model.getFrameId(frame.name) for frame in links]
             self.links = [Link(stl_file=stl_path/ f'visual_link{i}.stl',
@@ -34,7 +34,10 @@ class Link:
         gmm.fit(self.points)
         self.means: np.ndarray = gmm.means_.transpose(1, 0)
         self.priors: np.ndarray = gmm.weights_
-        self.covs: np.ndarray = rotation @ gmm.covariances_ @ rotation.T
+        if rotation is not None:
+            self.covs: np.ndarray = rotation @ gmm.covariances_ @ rotation.T
+        else:
+            self.covs = gmm.covariances_
         self.vector: np.ndarray = points[np.argmax(points[:, 2])] - points[np.argmin(points[:, 2])]
 
     def get_point_from_stl(self, stl_file: str, surface_resolution: int = 1):

@@ -1,6 +1,6 @@
 import time
 import numpy as np
-from forward_kinematics import ForwardKinematic
+from .forward_kinematics import ForwardKinematic
 
 class Embedding:
     def __init__(self, dimension: int, x: np.ndarray, fk: ForwardKinematic, limits: np.ndarray):

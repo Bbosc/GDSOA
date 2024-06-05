@@ -1,6 +1,6 @@
 import time
 import numpy as np
-from embedding import Embedding
+from .embedding import Embedding
 
 
 class DynamicalSystem:
