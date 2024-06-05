@@ -30,38 +30,29 @@ class Embedding:
             return res
         return wrapper
 
-    def limit_embedding(self, q, booster: int = 10):
-        # measure = np.abs(((q - self.limits).T))
+    def limit_embedding(self, q):
         upper_bound = 10 / (1 + np.power(np.exp(10*(self.limits[1] - q)), 4))
         lower_bound = 10 / (1 + np.power(np.exp(10*(q - self.limits[0])), 4))
         return upper_bound + lower_bound
-        # return np.exp(-(measure - 0.002)**2).sum(1)
-        # return booster * self.generalized_sigmoid(1/measure, b=1, m=10)
 
     @staticmethod
     def generalized_sigmoid(x, b=1., a=0., k=1., m=0.):
         c = -b*(x-m) # to avoid overflow in exp
         return (k-a) / (1 + np.exp(c)) + a
 
-    def compute_value(self, booster: float = 1):
+    def compute_value(self):
         prefix = 1/(np.sqrt(np.power(2*np.pi, self.x.shape[1]) * np.linalg.det(self.nsigma)))
         exp = -0.5*np.einsum('bdij,djk,bdkn->bd', self.diff.transpose(0, 1, 3, 2), np.linalg.inv(self.nsigma), self.diff)
         res = prefix * np.exp(exp)
         obstacle_embedding = res / self.x.shape[0]
-        return booster * obstacle_embedding
-        obstacle_embedding = res / self.x.shape[0]
-        return booster * obstacle_embedding
+        return obstacle_embedding
     
-    def derive(self, q, dq, dynamic_weight):
+    def derive(self, q, dq):
         # update the value of the covariances and centroids
         mus, sigmas, dmus, dsigmas, ddmus, ddsigmas = self.fk(q, dq)
         self.update_parameters(mu=mus, sigma=sigmas)
         # compute the embedding value
-        limit_embedding = self.limit_embedding(q)
-        obstacle_embedding = self.compute_value()
-        # p = smoothener(dynamic_weight * obstacle_embedding + limit_embedding)
-        p = obstacle_embedding
-        self.p_logger.append(p)
+        p = self.compute_value()
         # derivative of the embedding
         sigma_inv = np.linalg.inv(self.nsigma)
         dsigma_inv = np.einsum('kmn, knpo, kpq -> kmqo', -sigma_inv, dsigmas, sigma_inv)
@@ -74,12 +65,11 @@ class Embedding:
             np.einsum('nkijd, kijp->nkdp', self._derive_wrt_q_sigma_m(p, sigma_inv, dsigma_inv, dmus), dsigmas) + \
             np.einsum('nkij,kdgij->nkdg', dpdsigma, ddsigmas)
         self.hessian = hessian.sum(0).sum(0)
-        return self.gradient.sum(1).sum(0, keepdims=True), self.hessian
+        return p.sum(1), self.gradient.sum(1).sum(0, keepdims=True), self.hessian
     
     def value_only(self, q):
         self.fk(q=q, dq=np.zeros_like(q), derivation_order=0)
         self.update_parameters(mu=self.fk.mus, sigma=self.fk.sigmas)
-        # p = smoothener(self.compute_value() + self.limit_embedding(q))
         p = self.compute_value()
         return p
     
