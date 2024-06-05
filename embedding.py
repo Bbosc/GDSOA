@@ -57,8 +57,8 @@ class Embedding:
         # compute the embedding value
         limit_embedding = self.limit_embedding(q)
         obstacle_embedding = self.compute_value()
-        p = dynamic_weight * obstacle_embedding + limit_embedding
-        self.p = p.sum(1)
+        # p = smoothener(dynamic_weight * obstacle_embedding + limit_embedding)
+        p = obstacle_embedding
         self.p_logger.append(p)
         # derivative of the embedding
         sigma_inv = np.linalg.inv(self.nsigma)
@@ -77,7 +77,8 @@ class Embedding:
     def value_only(self, q):
         self.fk(q=q, dq=np.zeros_like(q), derivation_order=0)
         self.update_parameters(mu=self.fk.mus, sigma=self.fk.sigmas)
-        p = self.compute_value() + self.limit_embedding(q)
+        # p = smoothener(self.compute_value() + self.limit_embedding(q))
+        p = self.compute_value()
         return p
     
     def _derive_wrt_mu(self, p, mu, sigma):
