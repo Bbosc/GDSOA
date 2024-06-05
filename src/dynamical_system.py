@@ -11,15 +11,12 @@ class DynamicalSystem:
         self.embedding = embedding
         self.speed_limits = np.ones_like(attractor) * 2.62
         self.dt = dt
+        self.embedding_logger = []
         self.gradient_logger = []
-        self.weight_logger = []
-        self.speed_logger = []
-        self.christ_logger = []
         self.hessian_logger = []
-        self.metric_logger = []
-        self.gr_logger = []
-        self.gradient_sign = None
-        self.sigma = 0
+        self.x_logger = []
+        self.dx_logger = []
+        self.ddx_logger = []
 
     def __call__(self, x, dx):
         ddx = self.compute_acceleration(x.copy(), dx.copy())
@@ -39,14 +36,20 @@ class DynamicalSystem:
         christoffel = self.compute_christoffel(metric, embedding_gradient, embedding_hessian)
         harmonic = - np.linalg.inv(metric) @ self.stiffness @ (x - self.attractor) - self.dissipation @ dx
         geodesic = - np.einsum('qij,i->qj', christoffel, dx) @ dx
-        return harmonic + geodesic
+
+        # loggers
+        self.embedding_logger.append(embedding)
+        self.gradient_logger.append(embedding_gradient)
+        self.hessian_logger.append(embedding_hessian)
+        return geodesic
     
     def integrate(self, x, dx, ddx):
+        self.ddx_logger.append(ddx)
         new_dx = dx + ddx * self.dt
-        capped_speed = np.maximum(new_dx, -self.speed_limits)
-        capped_speed = np.minimum(capped_speed, self.speed_limits)
-        new_x = x + capped_speed * self.dt
-        return new_x, capped_speed
+        self.dx_logger.append(new_dx)
+        new_x = x + new_dx * self.dt
+        self.x_logger.append(new_x)
+        return new_x, new_dx
 
     def compute_metric(self, embedding_gradient)->np.ndarray:
         d = embedding_gradient.shape[1]
@@ -82,8 +85,6 @@ class DynamicalSystem:
         d = embedding_gradient.shape[0]
         return np.kron(embedding_hessian, embedding_gradient.T).reshape((d, d, d)) + np.kron(embedding_gradient, embedding_hessian.T).reshape((d, d, d))
                 
-
-
     @staticmethod
     def derive_metric(embedding_gradient: np.linalg.inv, embedding_hessian: np.linalg.inv)->np.ndarray:
         return np.einsum('pq,r->pqr', embedding_hessian, embedding_gradient.squeeze()) + np.einsum('p,qr->pqr', embedding_gradient.squeeze(), embedding_hessian)
