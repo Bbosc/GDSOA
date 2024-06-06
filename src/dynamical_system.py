@@ -14,6 +14,9 @@ class DynamicalSystem:
         self.embedding_logger = []
         self.gradient_logger = []
         self.hessian_logger = []
+        self.christoffel_logger = []
+        self.metric_logger = []
+        self.forces_logger = []
         self.x_logger = []
         self.dx_logger = []
         self.ddx_logger = []
@@ -42,10 +45,21 @@ class DynamicalSystem:
         self.embedding_logger.append(embedding)
         self.gradient_logger.append(embedding_gradient)
         self.hessian_logger.append(embedding_hessian)
+        self.christoffel_logger.append(christoffel)
+        self.metric_logger.append(metric)
+        self.forces_logger.append(self.derive_metric(embedding_gradient, embedding_hessian).transpose(0, 2, 1))
+        if self.embedding_logger[-1].sum() < 0.1:
+            return harmonic
+        else:
+            return geodesic
         return geodesic
     
     def integrate(self, x, dx, ddx):
         new_dx = dx + ddx * self.dt
+        metric = self.metric_logger[-1]
+        _, vectors = np.linalg.eigh(metric)
+        if self.embedding_logger[-1].sum() > 0.5:
+            new_dx = vectors[0] * np.dot(new_dx, vectors[0])/np.linalg.norm(vectors[0])
         new_x = x + new_dx * self.dt
 
         # loggers
