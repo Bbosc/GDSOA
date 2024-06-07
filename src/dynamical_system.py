@@ -60,8 +60,8 @@ class DynamicalSystem:
         # projected_speed = vectors[0] * np.dot(new_dx, vectors[0])/np.linalg.norm(vectors[0])
         projected_accel = vectors[1] * np.dot(ddx, vectors[1])/np.linalg.norm(vectors[1])
         # new_dx = projection_weight * projected_speed + (1-projection_weight) * new_dx
-        if p > 0.4:
-            ddx = projected_accel
+        # if p > 0.4:
+        # ddx = projected_accel
         new_dx = dx + ddx * self.dt
         new_x = x + new_dx * self.dt
 
