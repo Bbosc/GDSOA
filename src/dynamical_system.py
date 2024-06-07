@@ -21,6 +21,7 @@ class DynamicalSystem:
         self.dx_logger = []
         self.ddx_logger = []
         self.correction_logger = []
+        self.keep_projection = False
 
     def __call__(self, x, dx):
         ddx = self.compute_acceleration(x.copy(), dx.copy())
@@ -48,18 +49,20 @@ class DynamicalSystem:
         self.christoffel_logger.append(christoffel)
         self.metric_logger.append(metric)
         self.forces_logger.append(self.derive_metric(embedding_gradient, embedding_hessian).transpose(0, 2, 1))
-        if self.embedding_logger[-1].sum() < 0.1:
-            return harmonic
-        else:
-            return geodesic
+
         return geodesic
     
     def integrate(self, x, dx, ddx):
-        new_dx = dx + ddx * self.dt
         metric = self.metric_logger[-1]
         _, vectors = np.linalg.eigh(metric)
-        if self.embedding_logger[-1].sum() > 0.5:
-            new_dx = vectors[0] * np.dot(new_dx, vectors[0])/np.linalg.norm(vectors[0])
+        p = self.embedding_logger[-1].sum()
+        # projection_weight = self.generalized_sigmoid(x=p, b=20, a=0, k=1, m=1.)
+        # projected_speed = vectors[0] * np.dot(new_dx, vectors[0])/np.linalg.norm(vectors[0])
+        projected_accel = vectors[1] * np.dot(ddx, vectors[1])/np.linalg.norm(vectors[1])
+        # new_dx = projection_weight * projected_speed + (1-projection_weight) * new_dx
+        if p > 0.4:
+            ddx = projected_accel
+        new_dx = dx + ddx * self.dt
         new_x = x + new_dx * self.dt
 
         # loggers
@@ -119,10 +122,5 @@ class DynamicalSystem:
 
     @staticmethod
     def generalized_sigmoid(x, b=1., a=0., k=1., m=0.):
-        c = min(-b*(x-m).item(), 20) # to avoid overflow in exp
+        c = -b*(x-m).item() # to avoid overflow in exp
         return (k-a) / (1 + np.exp(c)) + a
-
-    def work(self, x, x_gradient):
-        a = np.dot(x_gradient, x-self.attractor)
-        b = x_gradient
-        return a, b
