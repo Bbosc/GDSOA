@@ -21,7 +21,7 @@ class DynamicalSystem:
         self.dx_logger = []
         self.ddx_logger = []
         self.correction_logger = []
-        self.keep_projection = False
+        self.is_projected_logger = []
 
     def __call__(self, x, dx):
         ddx = self.compute_acceleration(x.copy(), dx.copy())
@@ -39,7 +39,7 @@ class DynamicalSystem:
         embedding, embedding_gradient, embedding_hessian = self.embedding.derive(x, dx)
         metric = self.compute_metric(embedding_gradient)
         christoffel = self.compute_christoffel(metric, embedding_gradient, embedding_hessian)
-        harmonic = - np.linalg.inv(metric) @ self.stiffness @ (x - self.attractor) - self.dissipation @ dx
+        harmonic = - np.linalg.inv(metric) @ self.stiffness @ (x - self.attractor) - np.linalg.inv(metric) @ self.dissipation @ dx
         geodesic = - np.einsum('qij,i->qj', christoffel, dx) @ dx
 
         # loggers
@@ -53,18 +53,17 @@ class DynamicalSystem:
         return geodesic
     
     def integrate(self, x, dx, ddx):
-        metric = self.metric_logger[-1]
-        _, vectors = np.linalg.eigh(metric)
-        p = self.embedding_logger[-1].sum()
-        # projection_weight = self.generalized_sigmoid(x=p, b=20, a=0, k=1, m=1.)
-        # projected_speed = vectors[0] * np.dot(new_dx, vectors[0])/np.linalg.norm(vectors[0])
-        projected_accel = vectors[1] * np.dot(ddx, vectors[1])/np.linalg.norm(vectors[1])
-        # new_dx = projection_weight * projected_speed + (1-projection_weight) * new_dx
-        # if p > 0.4:
-        # ddx = projected_accel
         new_dx = dx + ddx * self.dt
-        new_x = x + new_dx * self.dt
 
+        if self.embedding_logger[-1].sum()>0.4:
+            ortho = np.array([-ddx[1], ddx[0]])
+            projection = ortho * np.dot(new_dx, ortho) / np.linalg.norm(ortho)
+            self.is_projected_logger.append(1)
+            new_dx = projection/np.linalg.norm(projection) * np.linalg.norm(new_dx)
+        else:
+            self.is_projected_logger.append(0)
+
+        new_x = x + new_dx * self.dt
         # loggers
         self.ddx_logger.append(ddx)
         self.dx_logger.append(new_dx)
