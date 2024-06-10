@@ -6,8 +6,8 @@ from .urdf_parser import URDFParser
 
 
 class ForwardKinematic:
-    def __init__(self, urdf_file: str, dim: int = 3) -> None:
-        parser = URDFParser(urdf_file=urdf_file)
+    def __init__(self, urdf_file: str, dim: int = 3, components_per_link: int = 1) -> None:
+        parser = URDFParser(urdf_file=urdf_file, components_per_link=components_per_link)
         self.links = parser.links
         self.model = pin.buildModelFromUrdf(urdf_file)
         self.data = self.model.createData()

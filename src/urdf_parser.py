@@ -6,7 +6,7 @@ from sklearn.mixture import GaussianMixture
 
 
 class URDFParser:
-    def __init__(self, urdf_file: str) -> None:
+    def __init__(self, urdf_file: str, components_per_link: int) -> None:
         self.model = pin.buildModelFromUrdf(urdf_file)
         self.data = self.model.createData()
         config_start = pin.neutral(self.model)
@@ -18,7 +18,8 @@ class URDFParser:
             links_ids = [self.model.getFrameId(frame.name) for frame in links]
             self.links = [Link(stl_file=stl_path/ f'visual_link{i}.stl',
                                rotation=self.data.oMf[links_ids[i]].rotation,
-                               translation=self.data.oMf[links_ids[i]].translation) for i in range(self.model.nq)]
+                               translation=self.data.oMf[links_ids[i]].translation,
+                               n_components=components_per_link) for i in range(self.model.nq)]
         else:
             self.links = [Link() for _ in range(self.model.nq)]
 
@@ -32,10 +33,10 @@ class Link:
         self.points = points.copy()
         gmm = GaussianMixture(n_components=n_components)
         gmm.fit(self.points)
-        self.means: np.ndarray = gmm.means_.transpose(1, 0)
+        self.means: np.ndarray = gmm.means_[:, :, np.newaxis] if n_components > 1 else gmm.means_.transpose(1, 0)
         self.priors: np.ndarray = gmm.weights_
         if rotation is not None:
-            self.covs: np.ndarray = rotation @ gmm.covariances_ @ rotation.T * 3
+            self.covs: np.ndarray = rotation @ gmm.covariances_ @ rotation.T
         else:
             self.covs = gmm.covariances_
         self.vector: np.ndarray = points[np.argmax(points[:, 2])] - points[np.argmin(points[:, 2])]

@@ -1,5 +1,7 @@
+from itertools import combinations
 import numpy as np
 import matplotlib.pyplot as plt
+from matplotlib import cm
 
 
 def plot_3d_ellipsoid_from_covariance(covariance_matrix, center=[0, 0, 0], ax=None, color='blue'):
@@ -65,4 +67,40 @@ def visualize_robot(fk, obstacle: np.ndarray = None, color='blue'):
     ax.set_ylim([-0.1, 2.1])
     ax.set_zlim([-0.1, 1.3])
     ax.axis('equal')
+    return ax
+
+def plot_coupled_embeddings(coordinates, attractor, streamlines, embedding, start):
+    couples = list(combinations(np.linspace(0, coordinates.shape[1]-1, coordinates.shape[1]), r=2))
+    fig, axs = plt.subplots(coordinates.shape[1], int(len(couples)/coordinates.shape[1]))
+    fig.set_size_inches(15, 20)
+    row = -1
+    for b, couple in enumerate(couples):
+        if axs.ndim == 1:
+            ax = axs[b]
+        else:
+            if b%axs.shape[1] == 0: row +=1
+            ax = axs[row, b%axs.shape[1]]
+        angle1 = min(int(couple[0]), int(couple[1]))
+        angle2 = max(int(couple[0]), int(couple[1]))
+        x = np.unique(embedding[:, angle1])
+        y = np.unique(embedding[:, angle2])
+        f = embedding[:, -1].reshape(tuple(x.shape[0] for _ in range(embedding.shape[1]-1)))
+        dims_to_sum = tuple(map(lambda tup: tup[0], filter(lambda tup: tup[1], [(i, i not in (angle1, angle2)) for i in range(coordinates.shape[1])])))
+        z = f.sum(dims_to_sum) 
+        if angle1 == 0:
+            ax.contourf(x, y, z, antialiased=False, alpha=0.35, cmap=cm.coolwarm, levels=10)
+        else:
+            ax.contourf(x, y, z.T, antialiased=False, alpha=0.35, cmap=cm.coolwarm, levels=10)
+        if attractor is not None:
+            ax.scatter(attractor[angle1], attractor[angle2], marker='*', label='target', c='navy', s=40)
+        if start is not None:
+            ax.scatter(start[angle1], start[angle2], marker='*', label='start', c='gold', s=40)
+        if streamlines is not None:
+            ax.scatter(streamlines[:, angle1], streamlines[:, angle2], label='path', c='black', s=1)
+        ax.set_xlabel(f'q{angle1+1}')
+        ax.set_ylabel(f'q{angle2+1}')
+        ax.set_xlim([-np.pi, np.pi])
+        ax.set_ylim([-np.pi, np.pi])
+        ax.legend(loc='upper right')
+    fig.tight_layout()
     return ax
