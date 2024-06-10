@@ -12,12 +12,13 @@ class ForwardKinematic:
         self.model = pin.buildModelFromUrdf(urdf_file)
         self.data = self.model.createData()
         self.dim = dim 
-        self.mus = np.zeros((self.model.nq, self.dim))
-        self.sigmas = np.zeros((self.model.nq, self.dim, self.dim))
-        self.dmus = np.zeros((self.model.nq, self.dim, self.model.nq))
-        self.dsigmas = np.zeros((self.model.nq, self.dim, self.dim, self.model.nq))
-        self.ddmus = np.zeros((self.model.nq, self.model.nq, self.model.nq, self.dim))
-        self.ddsigmas = np.zeros((self.model.nq, self.model.nq, self.model.nq, self.dim, self.dim))
+        self.n_gmms = self.model.nq * parser.n_components
+        self.mus = np.zeros((self.n_gmms, self.dim))
+        self.sigmas = np.zeros((self.n_gmms, self.dim, self.dim))
+        self.dmus = np.zeros((self.n_gmms, self.dim, self.model.nq))
+        self.dsigmas = np.zeros((self.n_gmms, self.dim, self.dim, self.model.nq))
+        self.ddmus = np.zeros((self.n_gmms, self.model.nq, self.model.nq, self.dim))
+        self.ddsigmas = np.zeros((self.n_gmms, self.model.nq, self.model.nq, self.dim, self.dim))
 
     def profiler(func):
         def wrapper(*args, **kwargs):
@@ -37,8 +38,9 @@ class ForwardKinematic:
         dR_dqs = []
         ddR_ddqs = []
 
-        for i in range(self.model.nq):
-            link_name = f'link{i+1}' if 'planar' in self.model.name else f'panda_link{i}'
+        for i in range(self.n_gmms):
+            link_index = int(i/(self.n_gmms/self.model.nq))
+            link_name = f'link{link_index+1}' if 'planar' in self.model.name else f'panda_link{link_index}'
             link_id = self.model.getFrameId(link_name)
             rotation = self.data.oMf[link_id].rotation
             link_rotation = np.linalg.inv(rotations[-1]) @ rotation if i > 0 else rotation
@@ -46,10 +48,10 @@ class ForwardKinematic:
             link_rotations.append(link_rotation)
             translation = self.data.oMf[link_id].translation
             # computing the new mu and sigma
-            self.sigmas[i] = rotation @ self.links[i].covs @ rotation.transpose(1, 0)
+            self.sigmas[i] = rotation @ self.links[link_index].covs[int(i%(self.n_gmms/self.model.nq))] @ rotation.transpose(1, 0)
             # offseted_covs = self.rotation_offsets[i] @ self.links[i].covs @ self.rotation_offsets[i].T
             # self.sigmas[i] = rotation @ offseted_covs @ rotation.transpose(1, 0)
-            self.mus[i] = translation + (rotation @ self.links[i].means).reshape(translation.shape)
+            self.mus[i] = translation + (rotation @ self.links[link_index].means[int(i%(self.n_gmms/self.model.nq))]).reshape(translation.shape)
             # self.mus[i] = np.dot(translation + (rotation @ self.links[i].means).reshape(translation.shape), self.rotation_offsets[i].T)
             # computing the first order derivative of mu and sigma
             if derivation_order > 0:

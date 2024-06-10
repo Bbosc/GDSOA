@@ -7,6 +7,7 @@ from sklearn.mixture import GaussianMixture
 
 class URDFParser:
     def __init__(self, urdf_file: str, components_per_link: int) -> None:
+        self.n_components = components_per_link
         self.model = pin.buildModelFromUrdf(urdf_file)
         self.data = self.model.createData()
         config_start = pin.neutral(self.model)
