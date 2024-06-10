@@ -44,28 +44,32 @@ class ForwardKinematic:
             link_id = self.model.getFrameId(link_name)
             rotation = self.data.oMf[link_id].rotation
             link_rotation = np.linalg.inv(rotations[-1]) @ rotation if i > 0 else rotation
-            rotations.append(rotation)
-            link_rotations.append(link_rotation)
+            component_id = int(i%(self.n_gmms/self.model.nq))
+            if component_id == 0:
+                rotations.append(rotation)
+                link_rotations.append(link_rotation)
             translation = self.data.oMf[link_id].translation
             # computing the new mu and sigma
-            self.sigmas[i] = rotation @ self.links[link_index].covs[int(i%(self.n_gmms/self.model.nq))] @ rotation.transpose(1, 0)
+            self.sigmas[i] = rotation @ self.links[link_index].covs[component_id] @ rotation.transpose(1, 0)
             # offseted_covs = self.rotation_offsets[i] @ self.links[i].covs @ self.rotation_offsets[i].T
             # self.sigmas[i] = rotation @ offseted_covs @ rotation.transpose(1, 0)
-            self.mus[i] = translation + (rotation @ self.links[link_index].means[int(i%(self.n_gmms/self.model.nq))]).reshape(translation.shape)
+            self.mus[i] = translation + (rotation @ self.links[link_index].means[component_id]).reshape(translation.shape)
             # self.mus[i] = np.dot(translation + (rotation @ self.links[i].means).reshape(translation.shape), self.rotation_offsets[i].T)
             # computing the first order derivative of mu and sigma
             if derivation_order > 0:
                 Js.append(pin.computeFrameJacobian(self.model, self.data, q, link_id))
-                dR_dqs.append(self.skew_matrix(Js[-1][3:, i]) @ link_rotation)
+                if component_id == 0:
+                    dR_dqs.append(self.skew_matrix(Js[-1][3:, link_index]) @ link_rotation)
                 dR = self.rotation_derivative(link_rotations, dR_dqs)
-                self.dmus[i] = Js[-1][:3] + (dR.transpose(2, 0, 1) @ self.links[i].means).squeeze().T
-                self.dsigmas[i] = rotation @ self.links[i].covs @ dR + (rotation @ self.links[i].covs @ dR).transpose(1, 0, 2)
+                self.dmus[i] = Js[-1][:3] + (dR.transpose(2, 0, 1) @ self.links[link_index].means[component_id]).squeeze().T
+                self.dsigmas[i] = rotation @ self.links[link_index].covs[component_id] @ dR + (rotation @ self.links[link_index].covs[component_id] @ dR).transpose(1, 0, 2)
             # computing the second order derivative of mu and sigma
             if derivation_order > 1:
-                ddR_ddqs.append(self.skew_matrix(Js[-1][3:, i]) @ dR_dqs[-1])
+                if component_id == 0:
+                    ddR_ddqs.append(self.skew_matrix(Js[-1][3:, link_index]) @ dR_dqs[-1])
                 ddR = self.rotation_hessian(link_rotations, dR_dqs, ddR_ddqs)
-                self.ddmus[i] = self.second_derivative_mu(i, link_id, ddR)
-                self.ddsigmas[i] = self.second_derivative_sigma(i, link_rotation, dR, ddR)
+                self.ddmus[i] = self.second_derivative_mu(link_index, link_id, ddR)
+                self.ddsigmas[i] = self.second_derivative_sigma(link_index, component_id, link_rotation, dR, ddR)
             
         return self.mus, self.sigmas, self.dmus, self.dsigmas, self.ddmus, self.ddsigmas
 
@@ -108,15 +112,15 @@ class ForwardKinematic:
                 ddR[i, j] = ddr
         return ddR
 
-    def second_derivative_sigma(self, joint_id, rotation, gradient, hessian):
+    def second_derivative_sigma(self, joint_id, component_id, rotation, gradient, hessian):
         a = np.empty((self.model.nq, self.model.nq, self.dim, self.dim))
         b = np.empty_like(a)
         c = np.empty_like(b)
         for i in range(a.shape[0]):
             for j in range(a.shape[1]):
-                a[i, j] = hessian[i, j] @ self.links[joint_id].covs @ rotation.T
-                b[i, j] = 2 * gradient[:, :, i] @ self.links[joint_id].covs @ gradient[:, :, j].T
-                c[i, j] = rotation @ self.links[joint_id].covs @ hessian[i, j].T
+                a[i, j] = hessian[i, j] @ self.links[joint_id].covs[component_id] @ rotation.T
+                b[i, j] = 2 * gradient[:, :, i] @ self.links[joint_id].covs[component_id] @ gradient[:, :, j].T
+                c[i, j] = rotation @ self.links[joint_id].covs[component_id] @ hessian[i, j].T
         return a + b + c
 
     def second_derivative_mu(self, joint_id, link_index, hessian):
