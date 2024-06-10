@@ -20,8 +20,7 @@ class DynamicalSystem:
         self.x_logger = []
         self.dx_logger = []
         self.ddx_logger = []
-        self.correction_logger = []
-        self.is_projected_logger = []
+        self.projection_weight_logger = []
 
     def __call__(self, x, dx):
         ddx = self.compute_acceleration(x.copy(), dx.copy())
@@ -55,13 +54,13 @@ class DynamicalSystem:
     def integrate(self, x, dx, ddx):
         new_dx = dx + ddx * self.dt
 
-        if self.embedding_logger[-1].sum()>0.4:
-            ortho = np.array([-ddx[1], ddx[0]])
-            projection = ortho * np.dot(new_dx, ortho) / np.linalg.norm(ortho)
-            self.is_projected_logger.append(1)
-            new_dx = projection/np.linalg.norm(projection) * np.linalg.norm(new_dx)
-        else:
-            self.is_projected_logger.append(0)
+        ortho = np.array([-ddx[1], ddx[0]])
+        projection = np.dot(new_dx, ortho) / np.linalg.norm(ortho) * ortho/np.linalg.norm(ortho)
+        projection_weight = self.generalized_sigmoid(
+            x=self.embedding_logger[-1].sum(),
+            b=40, a=0, k=1, m=0.8)
+        self.projection_weight_logger.append(projection_weight)
+        new_dx = projection_weight * projection + (1-projection_weight) * new_dx
 
         new_x = x + new_dx * self.dt
         # loggers
