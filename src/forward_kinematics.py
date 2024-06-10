@@ -40,35 +40,33 @@ class ForwardKinematic:
 
         for i in range(self.n_gmms):
             link_index = int(i/(self.n_gmms/self.model.nq))
-            link_name = f'link{link_index+1}' if 'planar' in self.model.name else f'panda_link{link_index}'
-            link_id = self.model.getFrameId(link_name)
-            rotation = self.data.oMf[link_id].rotation
-            link_rotation = np.linalg.inv(rotations[-1]) @ rotation if i > 0 else rotation
             component_id = int(i%(self.n_gmms/self.model.nq))
             if component_id == 0:
+                link_name = f'link{link_index+1}' if 'planar' in self.model.name else f'panda_link{link_index}'
+                link_id = self.model.getFrameId(link_name)
+                rotation = self.data.oMf[link_id].rotation
+                link_rotation = np.linalg.inv(rotations[-1]) @ rotation if i > 0 else rotation
                 rotations.append(rotation)
                 link_rotations.append(link_rotation)
-            translation = self.data.oMf[link_id].translation
+                translation = self.data.oMf[link_id].translation
             # computing the new mu and sigma
             self.sigmas[i] = rotation @ self.links[link_index].covs[component_id] @ rotation.transpose(1, 0)
-            # offseted_covs = self.rotation_offsets[i] @ self.links[i].covs @ self.rotation_offsets[i].T
-            # self.sigmas[i] = rotation @ offseted_covs @ rotation.transpose(1, 0)
             self.mus[i] = translation + (rotation @ self.links[link_index].means[component_id]).reshape(translation.shape)
-            # self.mus[i] = np.dot(translation + (rotation @ self.links[i].means).reshape(translation.shape), self.rotation_offsets[i].T)
             # computing the first order derivative of mu and sigma
             if derivation_order > 0:
-                Js.append(pin.computeFrameJacobian(self.model, self.data, q, link_id))
                 if component_id == 0:
+                    Js.append(pin.computeFrameJacobian(self.model, self.data, q, link_id))
                     dR_dqs.append(self.skew_matrix(Js[-1][3:, link_index]) @ link_rotation)
-                dR = self.rotation_derivative(link_rotations, dR_dqs)
+                    dR = self.rotation_derivative(link_rotations, dR_dqs)
                 self.dmus[i] = Js[-1][:3] + (dR.transpose(2, 0, 1) @ self.links[link_index].means[component_id]).squeeze().T
                 self.dsigmas[i] = rotation @ self.links[link_index].covs[component_id] @ dR + (rotation @ self.links[link_index].covs[component_id] @ dR).transpose(1, 0, 2)
             # computing the second order derivative of mu and sigma
             if derivation_order > 1:
                 if component_id == 0:
                     ddR_ddqs.append(self.skew_matrix(Js[-1][3:, link_index]) @ dR_dqs[-1])
-                ddR = self.rotation_hessian(link_rotations, dR_dqs, ddR_ddqs)
-                self.ddmus[i] = self.second_derivative_mu(link_index, component_id, link_id, ddR)
+                    ddR = self.rotation_hessian(link_rotations, dR_dqs, ddR_ddqs)
+                    dJ = self.jacobian_derivative(link_index, link_id)
+                self.ddmus[i] = self.second_derivative_mu(link_index, component_id, ddR, dJ)
                 self.ddsigmas[i] = self.second_derivative_sigma(link_index, component_id, link_rotation, dR, ddR)
             
         return self.mus, self.sigmas, self.dmus, self.dsigmas, self.ddmus, self.ddsigmas
@@ -123,13 +121,17 @@ class ForwardKinematic:
                 c[i, j] = rotation @ self.links[joint_id].covs[component_id] @ hessian[i, j].T
         return a + b + c
 
-    def second_derivative_mu(self, joint_id, component_id, link_index, hessian):
+    
+    def second_derivative_mu(self, link_index, component_id, hessian, dJ):
+        ddmu = dJ + hessian @ self.links[link_index].means[component_id]
+        return ddmu.squeeze()
+
+    def jacobian_derivative(self, link_index, link_id):
         ddmu = np.zeros((self.model.nq, self.model.nq, self.dim, 1))
-        dda = pin.getFrameAccelerationDerivatives(self.model, self.data, link_index, pin.ReferenceFrame.LOCAL_WORLD_ALIGNED)[3]
+        dda = pin.getFrameAccelerationDerivatives(self.model, self.data, link_id, pin.ReferenceFrame.LOCAL_WORLD_ALIGNED)[3]
         ddmu[0, 0] = np.array([[-1], [1], [1]]) * dda[:3, 0][:, np.newaxis][[1, 0, 2]]
-        for i in range(1, joint_id):
+        for i in range(1, link_index):
             ddmu[i, i] = np.array([[-1], [1], [1]]) * dda[:3, i][:, np.newaxis][[1, 0, 2]]
             ddmu[i, i-1] = np.array([[-1], [1], [1]]) * dda[:3, i][:, np.newaxis][[1, 0, 2]]
             ddmu[i-1, i] = np.array([[-1], [1], [1]]) * dda[:3, i][:, np.newaxis][[1, 0, 2]]
-        ddmu += hessian @ self.links[joint_id].means[component_id]
-        return ddmu.squeeze()
+        return ddmu
