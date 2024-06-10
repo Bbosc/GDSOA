@@ -49,7 +49,7 @@ class DynamicalSystem:
         self.metric_logger.append(metric)
         self.forces_logger.append(self.derive_metric(embedding_gradient, embedding_hessian).transpose(0, 2, 1))
 
-        return geodesic if embedding.sum() > 0.1 else harmonic + geodesic
+        return geodesic if embedding.sum()/embedding.shape[-1] > 0.2 else harmonic + geodesic
     
     def integrate(self, x, dx, ddx):
         new_dx = dx + ddx * self.dt

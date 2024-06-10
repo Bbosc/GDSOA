@@ -35,7 +35,7 @@ class Link:
         self.means: np.ndarray = gmm.means_.transpose(1, 0)
         self.priors: np.ndarray = gmm.weights_
         if rotation is not None:
-            self.covs: np.ndarray = rotation @ gmm.covariances_ @ rotation.T
+            self.covs: np.ndarray = rotation @ gmm.covariances_ @ rotation.T * 3
         else:
             self.covs = gmm.covariances_
         self.vector: np.ndarray = points[np.argmax(points[:, 2])] - points[np.argmin(points[:, 2])]
