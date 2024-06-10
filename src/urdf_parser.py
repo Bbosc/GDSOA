@@ -26,7 +26,7 @@ class URDFParser:
 
 
 class Link:
-    def __init__(self, stl_file: str = None, rotation: np.ndarray = None, translation: np.ndarray = None, n_components: int = 1) -> None:
+    def __init__(self, n_components, stl_file: str = None, rotation: np.ndarray = None, translation: np.ndarray = None) -> None:
         if stl_file is None:
             points = generate_ellipsoid().T[[0, 2, 1]].T
         else:
@@ -34,7 +34,7 @@ class Link:
         self.points = points.copy()
         gmm = GaussianMixture(n_components=n_components)
         gmm.fit(self.points)
-        self.means: np.ndarray = gmm.means_[:, :, np.newaxis] if n_components > 1 else gmm.means_.transpose(1, 0)
+        self.means: np.ndarray = gmm.means_[:, :, np.newaxis]
         self.priors: np.ndarray = gmm.weights_
         if rotation is not None:
             self.covs: np.ndarray = rotation @ gmm.covariances_ @ rotation.T
