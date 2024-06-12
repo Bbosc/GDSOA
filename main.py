@@ -1,3 +1,4 @@
+import time
 import numpy as np
 from tqdm import tqdm
 from src.embedding import Embedding
@@ -38,6 +39,7 @@ if __name__ == '__main__':
     for _ in tqdm(range(1000)):
         q, dq = ds(q, dq)
         publisher.publish(q.squeeze().tolist())
+        time.sleep(1e-3)
 
     np.set_printoptions(precision=3, suppress=True)
     print(f"DS iteration finished. Final configuration : {q}")
