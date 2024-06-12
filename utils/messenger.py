@@ -6,7 +6,7 @@ class Messenger:
     def __init__(self, port: str = "5511") -> None:
         self.context = zmq.Context()
         self.socket = self.context.socket(zmq.PUB)
-        self.socket.bind(f"tcp://*{port}")
+        self.socket.bind("tcp://*:" + port)
 
     def publish(self, data: list) -> None:
         assert isinstance(data, list)
