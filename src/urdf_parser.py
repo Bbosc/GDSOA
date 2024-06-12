@@ -22,7 +22,7 @@ class URDFParser:
                                translation=self.data.oMf[links_ids[i]].translation,
                                n_components=components_per_link) for i in range(self.model.nq)]
         else:
-            self.links = [Link() for _ in range(self.model.nq)]
+            self.links = [Link(n_components=1) for _ in range(self.model.nq)]
 
 
 class Link:
