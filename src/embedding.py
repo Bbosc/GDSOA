@@ -44,7 +44,7 @@ class Embedding:
         prefix = 1/(np.sqrt(np.power(2*np.pi, self.x.shape[1]) * np.linalg.det(self.nsigma)))
         exp = -0.5*np.einsum('bdij,djk,bdkn->bd', self.diff.transpose(0, 1, 3, 2), np.linalg.inv(self.nsigma), self.diff)
         res = prefix * np.exp(exp)
-        obstacle_embedding = res / self.x.shape[0]
+        obstacle_embedding = res / self.x.shape[0] * self.fk.priors
         return obstacle_embedding
     
     def derive(self, q, dq):

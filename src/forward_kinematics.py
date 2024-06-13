@@ -13,6 +13,7 @@ class ForwardKinematic:
         self.data = self.model.createData()
         self.dim = dim 
         self.n_gmms = self.model.nq * parser.n_components
+        self.priors = np.array([[prior for prior in link.priors] for link in self.links]).ravel()
         self.mus = np.zeros((self.n_gmms, self.dim))
         self.sigmas = np.zeros((self.n_gmms, self.dim, self.dim))
         self.dmus = np.zeros((self.n_gmms, self.dim, self.model.nq))
