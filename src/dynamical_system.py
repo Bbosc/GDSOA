@@ -49,10 +49,15 @@ class DynamicalSystem:
         self.metric_logger.append(metric)
         self.forces_logger.append(self.derive_metric(embedding_gradient, embedding_hessian).transpose(0, 2, 1))
 
-        return geodesic if embedding.sum()/embedding.shape[-1] > 0.2 else harmonic + geodesic
+        switch = 0 if embedding.sum() > 0.2 else 1
+        self.projection_weight_logger.append(switch)
+        return geodesic if (not switch) else harmonic + geodesic
+        # return geodesic
     
     def integrate(self, x, dx, ddx):
         new_dx = dx + ddx * self.dt
+        new_dx = np.minimum(new_dx, np.ones_like(new_dx)*2.68)
+        new_dx = np.maximum(new_dx, -np.ones_like(new_dx)*2.68)
 
         # ortho = np.array([-ddx[1], ddx[0]])
         # projection = np.dot(new_dx, ortho) / np.linalg.norm(ortho) * ortho/np.linalg.norm(ortho)
