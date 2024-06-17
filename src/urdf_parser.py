@@ -41,7 +41,7 @@ class Link:
             # self.covs: np.ndarray = rotation @ np.diag(gmm.covariances_.squeeze()) @ rotation.T
         else:
             self.covs = gmm.covariances_
-        self.covs *= 4
+        # self.covs *= 4
 
     def get_point_from_stl(self, stl_file: str, surface_resolution: int = 1):
         mesh = meshlib.Mesh.from_file(stl_file)

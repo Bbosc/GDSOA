@@ -1,6 +1,7 @@
 import time
 import numpy as np
 from .embedding import Embedding
+from utils.franka_parameters import joint_acceleration_limits
 
 
 class DynamicalSystem:
@@ -49,14 +50,16 @@ class DynamicalSystem:
         self.metric_logger.append(metric)
         self.forces_logger.append(self.derive_metric(embedding_gradient, embedding_hessian).transpose(0, 2, 1))
 
-        # switch = 0 if embedding.sum() > 0.2 else 1
-        switch = self.generalized_sigmoid(x=embedding.sum(), b=20, a=1, k=0, m=0.2)
+        switch = 0 if embedding.sum() > 0.2 else 1
+        # switch = self.generalized_sigmoid(x=embedding.sum(), b=50, a=1, k=0, m=0.2)
         self.projection_weight_logger.append(switch)
-        # return geodesic if (not switch) else harmonic + geodesic
-        return geodesic * (1 - switch) + switch * harmonic
+        return geodesic if (not switch) else harmonic + geodesic
+        # return geodesic * (1 - switch) + switch * harmonic
         # return geodesic
     
     def integrate(self, x, dx, ddx):
+        ddx = np.minimum(ddx, np.ones_like(ddx)*joint_acceleration_limits)
+        ddx = np.maximum(ddx, -np.ones_like(ddx)*joint_acceleration_limits)
         new_dx = dx + ddx * self.dt
         new_dx = np.minimum(new_dx, np.ones_like(new_dx)*2.68)
         new_dx = np.maximum(new_dx, -np.ones_like(new_dx)*2.68)
