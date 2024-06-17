@@ -56,9 +56,10 @@ def plot_3d_ellipsoid_from_covariance(covariance_matrix, center=[0, 0, 0], ax=No
 
     return ax
 
-def visualize_robot(fk, obstacle: np.ndarray = None, color='blue'):
-    fig = plt.figure()
-    ax = fig.add_subplot(projection='3d')
+def visualize_robot(fk, obstacle: np.ndarray = None, color='blue', ax = None):
+    if ax is None:
+        fig = plt.figure()
+        ax = fig.add_subplot(projection='3d')
     ax.scatter(*(fk.mus[:, i] for i in range(3)), c=color)
     for i in range(fk.sigmas.shape[0]):
         plot_3d_ellipsoid_from_covariance(fk.sigmas[i], center=fk.mus[i], ax=ax, color=color)
