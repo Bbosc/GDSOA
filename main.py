@@ -16,10 +16,11 @@ if __name__ == '__main__':
         )
 
     # arbitrary target configuration
-    config_attractor = np.array([-1.98, -0.34, -2.14, -2.74,  2.89, 0.80,  0.07])
-
+    # config_attractor = np.array([-1.98, -0.34, -2.14, -2.74,  2.89, 0.80,  0.07])
+    config_attractor = np.array([a * np.pi/180 for a in [90, 45, 0, -66, 0, 0, 45]])
     # placing an obstacle in the trajectory's way
-    x = np.array([[-0.2], [-0.1], [2.6]])[np.newaxis, :]
+    # x = np.array([[-0.2], [-0.1], [2.6]])[np.newaxis, :]
+    x = np.array([[0.4], [0.53], [0.52]])[np.newaxis, :]
 
     e = Embedding(dimension=fk.model.nq, x=x.repeat(1, 0), fk=fk, limits=joint_limits)
 
@@ -28,7 +29,8 @@ if __name__ == '__main__':
     ds = DynamicalSystem(stiffness=K, dissipation=D, attractor=config_attractor, embedding=e, dt=0.01)
 
     # initial conditions
-    q = np.array([0., 0., 0., -1.5, 0., 1.5, 0.])
+    # q = np.array([0., 0., 0., -1.5, 0., 1.5, 0.])
+    q = np.array([a * np.pi/180 for a in [0, 45, 0, -66, 0, 0, 45]])
     dq = np.zeros_like(q)
 
     # zmq streamer to the beautfiul-bullet simulator
@@ -39,7 +41,7 @@ if __name__ == '__main__':
     for _ in tqdm(range(1000)):
         q, dq = ds(q, dq)
         publisher.publish(q.squeeze().tolist())
-        time.sleep(1e-3)
+        # time.sleep(1e-3)
 
     np.set_printoptions(precision=3, suppress=True)
     print(f"DS iteration finished. Final configuration : {q}")
