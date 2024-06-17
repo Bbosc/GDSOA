@@ -31,8 +31,8 @@ class Embedding:
         return wrapper
 
     def limit_embedding(self, q):
-        upper_bound = 10 / (1 + np.power(np.exp(10*(self.limits[1] - q)), 4))
-        lower_bound = 10 / (1 + np.power(np.exp(10*(q - self.limits[0])), 4))
+        upper_bound = 10 / (1 + np.exp(30*(self.limits[1] - q)))
+        lower_bound = 10 / (1 + np.exp(30*(q - self.limits[0])))
         return upper_bound + lower_bound
 
     @staticmethod
@@ -52,7 +52,7 @@ class Embedding:
         mus, sigmas, dmus, dsigmas, ddmus, ddsigmas = self.fk(q, dq)
         self.update_parameters(mu=mus, sigma=sigmas)
         # compute the embedding value
-        p = self.compute_value() #+ self.limit_embedding(q=q)
+        p = self.compute_value() + self.limit_embedding(q=q)
         # derivative of the embedding
         sigma_inv = np.linalg.inv(self.nsigma)
         dsigma_inv = np.einsum('kmn, knpo, kpq -> kmqo', -sigma_inv, dsigmas, sigma_inv)
@@ -70,7 +70,7 @@ class Embedding:
     def value_only(self, q):
         self.fk(q=q, dq=np.zeros_like(q), derivation_order=0)
         self.update_parameters(mu=self.fk.mus, sigma=self.fk.sigmas)
-        p = self.compute_value() #+ self.limit_embedding(q)
+        p = self.compute_value() + self.limit_embedding(q)
         return p
     
     def _derive_wrt_mu(self, p, mu, sigma):

@@ -101,8 +101,8 @@ def plot_coupled_embeddings(coordinates, attractor, streamlines, embedding, star
             ax.scatter(streamlines[:, angle1], streamlines[:, angle2], label='path', c='black', s=1)
         ax.set_xlabel(f'q{angle1+1}')
         ax.set_ylabel(f'q{angle2+1}')
-        ax.set_xlim([-np.pi, np.pi])
-        ax.set_ylim([-np.pi, np.pi])
+        ax.set_xlim([x.min(), x.max()])
+        ax.set_ylim([y.min(), y.max()])
         ax.legend(loc='upper right')
     fig.tight_layout()
     return ax
