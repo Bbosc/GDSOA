@@ -31,6 +31,7 @@ def plot_3d_ellipsoid_from_covariance(covariance_matrix, center=[0, 0, 0], ax=No
 
     # Radii of the ellipsoid (square root of eigenvalues)
     radii = np.sqrt(eigenvalues)
+    # radii = np.sqrt(np.diag(covariance_matrix))
 
     # Create sphere mesh
     u = np.linspace(0, 2 * np.pi, 10)
@@ -92,9 +93,9 @@ def plot_coupled_embeddings(coordinates, attractor, streamlines, embedding, star
         else:
             ax.contourf(x, y, z.T, antialiased=False, alpha=0.35, cmap=cm.coolwarm, levels=10)
         if attractor is not None:
-            ax.scatter(attractor[angle1], attractor[angle2], marker='*', label='target', c='navy', s=40)
+            ax.scatter(attractor[angle1], attractor[angle2], marker='*', label='target', c='navy', s=80)
         if start is not None:
-            ax.scatter(start[angle1], start[angle2], marker='*', label='start', c='gold', s=40)
+            ax.scatter(start[angle1], start[angle2], marker='*', label='start', c='gold', s=80)
         if streamlines is not None:
             ax.scatter(streamlines[:, angle1], streamlines[:, angle2], label='path', c='black', s=1)
         ax.set_xlabel(f'q{angle1+1}')

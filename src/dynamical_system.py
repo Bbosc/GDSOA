@@ -49,9 +49,11 @@ class DynamicalSystem:
         self.metric_logger.append(metric)
         self.forces_logger.append(self.derive_metric(embedding_gradient, embedding_hessian).transpose(0, 2, 1))
 
-        switch = 0 if embedding.sum() > 0.2 else 1
+        # switch = 0 if embedding.sum() > 0.2 else 1
+        switch = self.generalized_sigmoid(x=embedding.sum(), b=20, a=1, k=0, m=0.2)
         self.projection_weight_logger.append(switch)
-        return geodesic if (not switch) else harmonic + geodesic
+        # return geodesic if (not switch) else harmonic + geodesic
+        return geodesic * (1 - switch) + switch * harmonic
         # return geodesic
     
     def integrate(self, x, dx, ddx):
