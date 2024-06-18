@@ -1,4 +1,4 @@
-import time
+import json
 import numpy as np
 from tqdm import tqdm
 from src.embedding import Embedding
@@ -10,28 +10,28 @@ from utils.messenger import Messenger
 
 if __name__ == '__main__':
 
+    with open('config/environment1.json') as file:
+        config = json.load(file)
+
     fk = ForwardKinematic(
-        urdf_file='franka_description/urdf/panda_no_gripper.urdf',
+        urdf_file=config['urdf'],
         components_per_link=1
         )
 
     # arbitrary target configuration
-    # config_attractor = np.array([-1.98, -0.34, -2.14, -2.74,  2.89, 0.80,  0.07])
-    config_attractor = np.array([a * np.pi/180 for a in [90, 45, 0, -66, 0, 0, 45]])
+    config_attractor = np.array([a * np.pi/180 for a in config['attractor']])
     # placing an obstacle in the trajectory's way
-    # x = np.array([[-0.2], [-0.1], [2.6]])[np.newaxis, :]
-    x = np.array([[0.4], [0.53], [0.52]])[np.newaxis, :]
+    x = np.array(config['obstacles'])
 
-    e = Embedding(dimension=fk.model.nq, x=x.repeat(1, 0), fk=fk, limits=joint_limits)
+    e = Embedding(dimension=fk.model.nq, x=x, fk=fk, limits=joint_limits)
 
     K = 1 * np.eye(fk.model.nq)
     D = 1.5*np.eye(fk.model.nq)
     ds = DynamicalSystem(stiffness=K, dissipation=D, attractor=config_attractor, embedding=e, dt=0.01)
 
     # initial conditions
-    # q = np.array([0., 0., 0., -1.5, 0., 1.5, 0.])
-    q = np.array([a * np.pi/180 for a in [0, 45, 0, -66, 0, 0, 45]])
-    dq = np.zeros_like(q)
+    q = np.array([a * np.pi/180 for a in config['initial_configuration']])
+    dq = np.array(config['initial_velocities'])
 
     # zmq streamer to the beautfiul-bullet simulator
     publisher = Messenger(port="5511")
@@ -41,7 +41,6 @@ if __name__ == '__main__':
     for _ in tqdm(range(1000)):
         q, dq = ds(q, dq)
         publisher.publish(q.squeeze().tolist())
-        # time.sleep(1e-3)
 
     np.set_printoptions(precision=3, suppress=True)
     print(f"DS iteration finished. Final configuration : {q}")
