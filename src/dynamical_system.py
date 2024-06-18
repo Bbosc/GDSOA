@@ -22,6 +22,8 @@ class DynamicalSystem:
         self.dx_logger = []
         self.ddx_logger = []
         self.projection_weight_logger = []
+        self.distance_logger = []
+        self.zeta_logger = []
 
     def __call__(self, x, dx):
         ddx = self.compute_acceleration(x.copy(), dx.copy())
@@ -50,6 +52,13 @@ class DynamicalSystem:
         self.metric_logger.append(metric)
         self.forces_logger.append(self.derive_metric(embedding_gradient, embedding_hessian).transpose(0, 2, 1))
 
+        # switching
+        distances = self.embedding.distance_metric()
+        self.distance_logger.append(distances)
+        zeta = self.generalized_sigmoid(x=distances, b=50, a=0, k=1, m=0.5).squeeze() # switch around 30 cm
+        self.zeta_logger.append(zeta)
+        return geodesic * (1 - zeta) + harmonic * zeta
+
         switch = 0 if embedding.sum() > 0.2 else 1
         # switch = self.generalized_sigmoid(x=embedding.sum(), b=50, a=1, k=0, m=0.2)
         self.projection_weight_logger.append(switch)
@@ -63,14 +72,6 @@ class DynamicalSystem:
         new_dx = dx + ddx * self.dt
         new_dx = np.minimum(new_dx, np.ones_like(new_dx)*2.68)
         new_dx = np.maximum(new_dx, -np.ones_like(new_dx)*2.68)
-
-        # ortho = np.array([-ddx[1], ddx[0]])
-        # projection = np.dot(new_dx, ortho) / np.linalg.norm(ortho) * ortho/np.linalg.norm(ortho)
-        # projection_weight = self.generalized_sigmoid(
-        #     x=self.embedding_logger[-1].sum(),
-        #     b=40, a=0, k=1, m=0.8)
-        # self.projection_weight_logger.append(projection_weight)
-        # new_dx = projection_weight * projection + (1-projection_weight) * new_dx
 
         new_x = x + new_dx * self.dt
         # loggers
@@ -130,5 +131,5 @@ class DynamicalSystem:
 
     @staticmethod
     def generalized_sigmoid(x, b=1., a=0., k=1., m=0.):
-        c = -b*(x-m).item() # to avoid overflow in exp
+        c = -b*(x-m) # to avoid overflow in exp
         return (k-a) / (1 + np.exp(c)) + a
