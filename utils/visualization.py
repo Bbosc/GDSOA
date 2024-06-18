@@ -1,4 +1,5 @@
 from itertools import combinations
+from typing import List
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib import cm
@@ -70,6 +71,11 @@ def visualize_robot(fk, obstacle: np.ndarray = None, color='blue', ax = None):
     ax.set_zlim([-0.1, 1.3])
     ax.axis('equal')
     return ax
+
+def generate_grid_coordinates(joint_limits: List[dict], resolution: int=5):
+    qs = tuple(np.linspace(limit['lower'], limit['upper'], resolution) for limit in joint_limits)
+    grids = np.meshgrid(*qs)
+    return np.column_stack(tuple(g.ravel() for g in grids))
 
 def plot_coupled_embeddings(coordinates, attractor, streamlines, embedding, start):
     couples = list(combinations(np.linspace(0, coordinates.shape[1]-1, coordinates.shape[1]), r=2))
