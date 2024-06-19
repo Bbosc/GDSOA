@@ -27,7 +27,7 @@ if __name__ == '__main__':
 
     K = 1 * np.eye(fk.model.nq)
     D = 1.5*np.eye(fk.model.nq)
-    ds = DynamicalSystem(stiffness=K, dissipation=D, attractor=config_attractor, embedding=e, dt=0.01)
+    ds = DynamicalSystem(stiffness=K, dissipation=D, attractor=config_attractor, embedding=e, dt=0.01*0.4)
 
     # initial conditions
     q = np.array([a * np.pi/180 for a in config['initial_configuration']])

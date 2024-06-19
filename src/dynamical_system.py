@@ -55,7 +55,7 @@ class DynamicalSystem:
         # switching
         distances = self.embedding.distance_metric()
         self.distance_logger.append(distances)
-        zeta = self.generalized_sigmoid(x=distances, b=50, a=0, k=1, m=0.5).squeeze() # switch around 30 cm
+        zeta = self.generalized_sigmoid(x=distances, b=30, a=0, k=1, m=0.5).squeeze() # switch around 30 cm
         self.zeta_logger.append(zeta)
         return geodesic * (1 - zeta) + harmonic * zeta
 
