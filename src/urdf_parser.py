@@ -14,7 +14,7 @@ class URDFParser:
         pin.forwardKinematics(self.model, self.data, config_start)
         pin.updateFramePlacements(self.model, self.data)
         if self.model.name == 'panda':
-            stl_path = Path(__file__).parent.parent / 'franka_description/meshes/visual'
+            stl_path = Path(__file__).parent.parent / 'franka_description/meshes/refined'
             links = list(filter(lambda frame: 'panda_link' in frame.name, self.model.frames))
             links_ids = [self.model.getFrameId(frame.name) for frame in links]
             self.links = [Link(stl_file=stl_path/ f'visual_link{i}.stl',
@@ -34,6 +34,7 @@ class Link:
         self.points = points.copy()
         gmm = GaussianMixture(n_components=n_components)
         gmm.fit(self.points)
+        self.gmm = gmm
         self.means: np.ndarray = gmm.means_[:, :, np.newaxis]
         self.priors: np.ndarray = gmm.weights_
         if rotation is not None:
@@ -46,12 +47,13 @@ class Link:
     def get_point_from_stl(self, stl_file: str, surface_resolution: int = 1):
         mesh = meshlib.Mesh.from_file(stl_file)
         surface_points = mesh.points[:, :3]
-        surfaces = np.array_split(surface_points[np.argsort(surface_points[:, 2])], surface_resolution)
-        volumes = []
-        for surface in surfaces:
-            inside = self._fill_surface(surface, resolution=5)
-            volumes.append(inside)
-        return np.concatenate(volumes + [surface_points], axis=0)
+        return surface_points
+        # surfaces = np.array_split(surface_points[np.argsort(surface_points[:, 2])], surface_resolution)
+        # volumes = []
+        # for surface in surfaces:
+        #     inside = self._fill_surface(surface, resolution=5)
+        #     volumes.append(inside)
+        # return np.concatenate(volumes + [surface_points], axis=0)
 
     def _fill_surface(self, surface: np.ndarray, resolution: int = 10):
         x = np.linspace(min(surface[:, 0]), max(surface[:, 0]), resolution)
