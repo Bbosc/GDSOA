@@ -5,7 +5,9 @@ import pickle
 import numpy as np
 import pinocchio as pin
 import stl.mesh as meshlib
+import matplotlib.pyplot as plt
 from sklearn.mixture import GaussianMixture
+from utils.visualization import plot_3d_ellipsoid_from_covariance
 
 
 class RobotModel:
@@ -37,9 +39,21 @@ class RobotModel:
         return gmm
 
     @staticmethod
-    def _to_global(obj: np.ndarray, rotation: np.ndarray, translation: np.ndarray)->np.ndarray:
+    def _to_global(obj: np.ndarray, rotation: np.ndarray, translation: np.ndarray = None)->np.ndarray:
         assert ((rotation.ndim == 2) and (rotation.shape[0] == rotation.shape[1]))
-        return rotation @ obj @ rotation.T + translation
+        transformed_object = obj.copy()
+        if rotation is not None:
+            transformed_object = rotation @ transformed_object @ rotation.T
+        if translation is not None:
+            transformed_object += translation
+        return transformed_object
+
+    def _rebase_surface(self, link_id: int):
+        frame_name = f'panda_link{link_id}'
+        frame_id = self._model.getFrameId(frame_name)
+        rotation = self._data.oMf[frame_id].rotation
+        surface = self._extract_surface_points(link_id)
+        return np.dot(surface, rotation.T)
 
     def _get_gmm_model(self, link_id: int, n_components: int)->GaussianMixture:
         model_path = self.BINARY_PREFIX + f'link{link_id}'
@@ -50,19 +64,27 @@ class RobotModel:
                     return gmm
                 else:
                     print(f'refitting GMM of link{link_id} with {n_components} components...')
-        surface_points = self._extract_surface_points(link_id)
-        link_gmm = self._fit_gmm(surface_points, n_components=n_components)
+        global_surface = self._rebase_surface(link_id)
+        link_gmm = self._fit_gmm(global_surface, n_components=n_components)
         with open(model_path, 'wb') as file:
             pickle.dump(link_gmm, file)
         return link_gmm
 
     def export_link(self, link_id: int)->Tuple[np.ndarray]:
         gmm = self._gmms[link_id]
-        frame_name = f'panda_link{link_id}'
-        frame_id = self._model.getFrameId(frame_name)
-        translation = self._data.oMf[frame_id].translation
-        rotation = self._data.oMf[frame_id].rotation
         means = gmm.means_
         priors = gmm.weights_
-        covariances = self._to_global(gmm.covariances_, rotation=rotation, translation=translation)
+        covariances = gmm.covariances_
         return means, covariances, priors
+    
+    def display_link(self, link_id: int):
+        s = self._rebase_surface(link_id)
+        m, c, p =  self.export_link(link_id)
+        fig = plt.figure()
+        ax = fig.add_subplot(projection='3d')
+        ax.scatter(s[:, 0], s[:, 1], s[:, 2], s=1, alpha=0.01)
+        ax.scatter(m[:, 0], m[:, 1], m[:, 2], s=100, c='yellow', label='means')
+        for i in range(c.shape[0]):
+            ax.set_aspect('equal')
+            plot_3d_ellipsoid_from_covariance(c[i], center=m[i], ax=ax, color='orange')
+        return ax
