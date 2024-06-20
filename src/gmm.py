@@ -21,10 +21,14 @@ class RobotModel:
         pin.updateFramePlacements(self._model, self._data)
         # fit a gmm per link
         self._gmms = []
+        self.n_components = 0
+        self.partitions = []
         with open(gmm_configuration_file) as configuration_file:
             configuration = json.load(configuration_file)
-            for i in range(self._model.nq+1):
+            for i in range(self._model.nq):
+                self.n_components += configuration[str(i)]
                 self._gmms.append(self._get_gmm_model(link_id=i, n_components=configuration[str(i)]))
+                self.partitions.append(configuration[str(i)])
 
     @classmethod
     def _extract_surface_points(cls, link_id: int)->np.ndarray:
@@ -88,3 +92,7 @@ class RobotModel:
             ax.set_aspect('equal')
             plot_3d_ellipsoid_from_covariance(c[i], center=m[i], ax=ax, color='orange')
         return ax
+
+    @property
+    def gmms(self):
+        return self._gmms

@@ -52,7 +52,7 @@ class Embedding:
         mus, sigmas, dmus, dsigmas, ddmus, ddsigmas = self.fk(q, dq)
         self.update_parameters(mu=mus, sigma=sigmas)
         # compute the embedding value
-        p = self.compute_value() + self.limit_embedding(q=q)
+        p = self.compute_value() #+ self.limit_embedding(q=q)
         # derivative of the embedding
         sigma_inv = np.linalg.inv(self.nsigma)
         dsigma_inv = np.einsum('kmn, knpo, kpq -> kmqo', -sigma_inv, dsigmas, sigma_inv)
@@ -127,7 +127,7 @@ class Embedding:
     def distance_metric(self):
         # return np.linalg.norm(self.x - self.nmu, axis=1)
         distances = np.linalg.norm(self.x[np.newaxis, :] - self.nmu[:, np.newaxis, :], axis=1)
-        return np.max(distances, axis=1)
+        return np.array([np.min(distances[:split]) for split in self.fk.robot_model.partitions])
 
 def cropper(value, threshold = 0.2):
     return np.zeros_like(value) if (value.sum() < threshold) else value

@@ -3,23 +3,24 @@ from typing import List
 import numpy as np
 import pinocchio as pin
 from .urdf_parser import URDFParser
+from .gmm import RobotModel
 
 
 class ForwardKinematic:
     def __init__(self, urdf_file: str, dim: int = 3, components_per_link: int = 1) -> None:
-        parser = URDFParser(urdf_file=urdf_file, components_per_link=components_per_link)
-        self.links = parser.links
+        self.robot_model = RobotModel(urdf_file)
         self.model = pin.buildModelFromUrdf(urdf_file)
         self.data = self.model.createData()
         self.dim = dim 
-        self.n_gmms = self.model.nq * parser.n_components
-        self.priors = np.array([[prior for prior in link.priors] for link in self.links]).ravel()
-        self.mus = np.zeros((self.n_gmms, self.dim))
-        self.sigmas = np.zeros((self.n_gmms, self.dim, self.dim))
-        self.dmus = np.zeros((self.n_gmms, self.dim, self.model.nq))
-        self.dsigmas = np.zeros((self.n_gmms, self.dim, self.dim, self.model.nq))
-        self.ddmus = np.zeros((self.n_gmms, self.model.nq, self.model.nq, self.dim))
-        self.ddsigmas = np.zeros((self.n_gmms, self.model.nq, self.model.nq, self.dim, self.dim))
+        n_gmms = self.robot_model.n_components
+        self.priors = np.hstack([gmm.weights_ for gmm in self.robot_model.gmms])
+        self.mus = np.zeros((n_gmms, self.dim))
+        self.sigmas = np.zeros((n_gmms, self.dim, self.dim))
+        self.dmus = np.zeros((n_gmms, self.dim, self.model.nq))
+        self.dsigmas = np.zeros((n_gmms, self.dim, self.dim, self.model.nq))
+        self.ddmus = np.zeros((n_gmms, self.model.nq, self.model.nq, self.dim))
+        self.ddsigmas = np.zeros((n_gmms, self.model.nq, self.model.nq, self.dim, self.dim))
+
 
     def profiler(func):
         def wrapper(*args, **kwargs):
@@ -38,38 +39,32 @@ class ForwardKinematic:
         Js = []
         dR_dqs = []
         ddR_ddqs = []
-
-        for i in range(self.n_gmms):
-            link_index = int(i/(self.n_gmms/self.model.nq))
-            component_id = int(i%(self.n_gmms/self.model.nq))
-            if component_id == 0:
-                link_name = f'link{link_index+1}' if 'planar' in self.model.name else f'panda_link{link_index}'
-                link_id = self.model.getFrameId(link_name)
-                rotation = self.data.oMf[link_id].rotation
-                link_rotation = np.linalg.inv(rotations[-1]) @ rotation if i > 0 else rotation
-                rotations.append(rotation)
-                link_rotations.append(link_rotation)
-                translation = self.data.oMf[link_id].translation
-            # computing the new mu and sigma
-            self.sigmas[i] = rotation @ self.links[link_index].covs[component_id] @ rotation.transpose(1, 0)
-            self.mus[i] = translation + (rotation @ self.links[link_index].means[component_id]).reshape(translation.shape)
-            # computing the first order derivative of mu and sigma
-            if derivation_order > 0:
-                if component_id == 0:
-                    Js.append(pin.computeFrameJacobian(self.model, self.data, q, link_id))
-                    dR_dqs.append(self.skew_matrix(Js[-1][3:, link_index]) @ link_rotation)
-                    dR = self.rotation_derivative(link_rotations, dR_dqs)
-                self.dmus[i] = Js[-1][:3] + (dR.transpose(2, 0, 1) @ self.links[link_index].means[component_id]).squeeze().T
-                self.dsigmas[i] = rotation @ self.links[link_index].covs[component_id] @ dR + (rotation @ self.links[link_index].covs[component_id] @ dR).transpose(1, 0, 2)
-            # computing the second order derivative of mu and sigma
-            if derivation_order > 1:
-                if component_id == 0:
-                    ddR_ddqs.append(self.skew_matrix(Js[-1][3:, link_index]) @ dR_dqs[-1])
-                    ddR = self.rotation_hessian(link_rotations, dR_dqs, ddR_ddqs)
-                    dJ = self.jacobian_derivative(link_index, link_id)
-                self.ddmus[i] = self.second_derivative_mu(link_index, component_id, ddR, dJ)
-                self.ddsigmas[i] = self.second_derivative_sigma(link_index, component_id, link_rotation, dR, ddR)
-            
+        k = 0
+        for i in range(self.model.nq):
+            means, covs, _ = self.robot_model.export_link(i)
+            link_name = f'link{i+1}' if 'planar' in self.model.name else f'panda_link{i}'
+            link_id = self.model.getFrameId(link_name)
+            rotation = self.data.oMf[link_id].rotation
+            link_rotation = np.linalg.inv(rotations[-1]) @ rotation if i > 0 else rotation
+            rotations.append(rotation)
+            link_rotations.append(link_rotation)
+            translation = self.data.oMf[link_id].translation
+            Js.append(pin.computeFrameJacobian(self.model, self.data, q, link_id))
+            dR_dqs.append(self.skew_matrix(Js[-1][3:, i]) @ link_rotation)
+            dR = self.rotation_derivative(link_rotations, dR_dqs)
+            ddR_ddqs.append(self.skew_matrix(Js[-1][3:, i]) @ dR_dqs[-1])
+            ddR = self.rotation_hessian(link_rotations, dR_dqs, ddR_ddqs)
+            dJ = self.jacobian_derivative(i, link_id)
+            for j in range(means.shape[0]):
+                self.sigmas[k] = rotation @ covs[j] @ rotation.transpose(1, 0)
+                self.mus[k] = translation + rotation @ means[j]
+                if derivation_order > 0:
+                    self.dmus[k] = Js[-1][:3] + (dR.transpose(2, 0, 1) @ means[j]).squeeze().T
+                    self.dsigmas[k] = rotation @ covs[j] @ dR + (rotation @ covs[j] @ dR).transpose(1, 0, 2)
+                if derivation_order > 1:
+                    self.ddmus[k] = self.second_derivative_mu(means[j], ddR, dJ)
+                    self.ddsigmas[k] = self.second_derivative_sigma(covs[j], link_rotation, dR, ddR)
+                k+=1
         return self.mus, self.sigmas, self.dmus, self.dsigmas, self.ddmus, self.ddsigmas
 
 
@@ -111,28 +106,27 @@ class ForwardKinematic:
                 ddR[i, j] = ddr
         return ddR
 
-    def second_derivative_sigma(self, joint_id, component_id, rotation, gradient, hessian):
+    def second_derivative_sigma(self, cov, rotation, gradient, hessian):
         a = np.empty((self.model.nq, self.model.nq, self.dim, self.dim))
         b = np.empty_like(a)
         c = np.empty_like(b)
         for i in range(a.shape[0]):
             for j in range(a.shape[1]):
-                a[i, j] = hessian[i, j] @ self.links[joint_id].covs[component_id] @ rotation.T
-                b[i, j] = 2 * gradient[:, :, i] @ self.links[joint_id].covs[component_id] @ gradient[:, :, j].T
-                c[i, j] = rotation @ self.links[joint_id].covs[component_id] @ hessian[i, j].T
+                a[i, j] = hessian[i, j] @ cov @ rotation.T
+                b[i, j] = 2 * gradient[:, :, i] @ cov @ gradient[:, :, j].T
+                c[i, j] = rotation @ cov @ hessian[i, j].T
         return a + b + c
 
-    
-    def second_derivative_mu(self, link_index, component_id, hessian, dJ):
-        ddmu = dJ + hessian @ self.links[link_index].means[component_id]
+    def second_derivative_mu(self, mean, hessian, dJ):
+        ddmu = dJ + hessian @ mean
         return ddmu.squeeze()
 
     def jacobian_derivative(self, link_index, link_id):
-        ddmu = np.zeros((self.model.nq, self.model.nq, self.dim, 1))
+        ddmu = np.zeros((self.model.nq, self.model.nq, self.dim))
         dda = pin.getFrameAccelerationDerivatives(self.model, self.data, link_id, pin.ReferenceFrame.LOCAL_WORLD_ALIGNED)[3]
-        ddmu[0, 0] = np.array([[-1], [1], [1]]) * dda[:3, 0][:, np.newaxis][[1, 0, 2]]
+        ddmu[0, 0] = np.array([-1, 1, 1]) * dda[:3, 0][[1, 0, 2]]
         for i in range(1, link_index):
-            ddmu[i, i] = np.array([[-1], [1], [1]]) * dda[:3, i][:, np.newaxis][[1, 0, 2]]
-            ddmu[i, i-1] = np.array([[-1], [1], [1]]) * dda[:3, i][:, np.newaxis][[1, 0, 2]]
-            ddmu[i-1, i] = np.array([[-1], [1], [1]]) * dda[:3, i][:, np.newaxis][[1, 0, 2]]
+            ddmu[i, i] = np.array([-1, 1, 1]) * dda[:3, i][[1, 0, 2]]
+            ddmu[i, i-1] = np.array([-1, 1, 1]) * dda[:3, i][[1, 0, 2]]
+            ddmu[i-1, i] = np.array([-1, 1, 1]) * dda[:3, i][[1, 0, 2]]
         return ddmu
