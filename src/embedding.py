@@ -125,9 +125,8 @@ class Embedding:
         return self.compute_value()
 
     def distance_metric(self):
-        # return np.linalg.norm(self.x - self.nmu, axis=1)
         distances = np.linalg.norm(self.x[np.newaxis, :] - self.nmu[:, np.newaxis, :], axis=1)
-        return np.array([np.min(distances[:split]) for split in self.fk.robot_model.partitions])
-
+        return np.array([np.min(distance) for distance in np.split(distances, self.fk.robot_model.partitions[:-1])])
+    
 def cropper(value, threshold = 0.2):
     return np.zeros_like(value) if (value.sum() < threshold) else value

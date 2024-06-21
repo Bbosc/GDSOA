@@ -27,8 +27,8 @@ class RobotModel:
             configuration = json.load(configuration_file)
             for i in range(self._model.nq):
                 self.n_components += configuration[str(i)]
+                self.partitions.append(self.n_components)
                 self._gmms.append(self._get_gmm_model(link_id=i, n_components=configuration[str(i)]))
-                self.partitions.append(configuration[str(i)])
 
     @classmethod
     def _extract_surface_points(cls, link_id: int)->np.ndarray:
@@ -68,8 +68,8 @@ class RobotModel:
                     return gmm
                 else:
                     print(f'refitting GMM of link{link_id} with {n_components} components...')
-        global_surface = self._rebase_surface(link_id)
-        link_gmm = self._fit_gmm(global_surface, n_components=n_components)
+        surface = self._extract_surface_points(link_id)
+        link_gmm = self._fit_gmm(surface, n_components=n_components)
         with open(model_path, 'wb') as file:
             pickle.dump(link_gmm, file)
         return link_gmm
