@@ -55,17 +55,12 @@ class DynamicalSystem:
         # switching
         distances = self.embedding.distance_metric()
         self.distance_logger.append(distances)
-        zeta = self.generalized_sigmoid(x=distances, b=20, a=0, k=1, m=0.15).squeeze() # switch around 30 cm
+        kappa = np.array([0.1, 0.1, 0.1, 0.1, 0.1, 0.1, 0.1])
+        zeta = self.generalized_sigmoid(x=distances, b=20, a=0, k=1, m=kappa).squeeze() # switch around 30 cm
         self.zeta_logger.append(zeta)
         return geodesic * (1 - zeta) + harmonic * zeta
 
-        switch = 0 if embedding.sum() > 0.2 else 1
-        # switch = self.generalized_sigmoid(x=embedding.sum(), b=50, a=1, k=0, m=0.2)
-        self.projection_weight_logger.append(switch)
-        return geodesic if (not switch) else harmonic + geodesic
-        # return geodesic * (1 - switch) + switch * harmonic
-        # return geodesic
-    
+
     def integrate(self, x, dx, ddx):
         ddx = np.minimum(ddx, np.ones_like(ddx)*joint_acceleration_limits)
         ddx = np.maximum(ddx, -np.ones_like(ddx)*joint_acceleration_limits)

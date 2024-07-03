@@ -7,8 +7,8 @@ from .gmm import RobotModel
 
 
 class ForwardKinematic:
-    def __init__(self, urdf_file: str, dim: int = 3, components_per_link: int = 1) -> None:
-        self.robot_model = RobotModel(urdf_file)
+    def __init__(self, urdf_file: str, gmm_configuration_file: str, dim: int = 3) -> None:
+        self.robot_model = RobotModel(urdf_file, gmm_configuration_file=gmm_configuration_file)
         self.model = pin.buildModelFromUrdf(urdf_file)
         self.data = self.model.createData()
         self.dim = dim 
