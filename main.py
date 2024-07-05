@@ -11,12 +11,12 @@ from utils.messenger import Messenger, Client
 
 if __name__ == '__main__':
 
-    with open('config/environment1.json') as file:
+    with open('config/environment2.json') as file:
         config = json.load(file)
 
     fk = ForwardKinematic(
         urdf_file=config['urdf'],
-        gmm_configuration_file='config/gmm_unit.json'
+        gmm_configuration_file='config/gmm.json'
         )
 
     # arbitrary target configuration
@@ -40,15 +40,11 @@ if __name__ == '__main__':
 
     #iterate over the DS
     print(f"starting DS iteration. Target : {config_attractor}")
-    for _ in range(5000):
+    for _ in range(13000):
         ddq = ds.compute_acceleration(q, dq)
         client.send_request(ddq.squeeze().tolist())
-        q = client.get_reply()
-        print('received: ', q)
-        # client.send_request(ddq.squeeze().tolist())
-        # q, dq = ds.integrate(q, dq, ddq)
-        # publisher.publish(ddq.squeeze().tolist())
-        time.sleep(2e-3)
+        q, dq = np.split(client.get_reply(), 2)
+        time.sleep(1e-3)
 
     np.set_printoptions(precision=3, suppress=True)
     print(f"DS iteration finished. Final configuration : {q}")

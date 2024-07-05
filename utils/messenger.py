@@ -23,7 +23,6 @@ class Client:
     def send_request(self, data: list) -> None:
         # assert isinstance(data, list)
         message = json.dumps(data)
-        print("sending ", data)
         self.socket.send_string(message)
         # self.socket.send(data)
 
