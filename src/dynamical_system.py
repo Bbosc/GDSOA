@@ -56,7 +56,7 @@ class DynamicalSystem:
         Returns:
             np.ndarray: next acceleration
         """
-        embedding, embedding_gradient, embedding_hessian = self.embedding.derive(x, dx)
+        embedding, embedding_gradient, embedding_hessian = self.embedding(x, dx)
         metric = self.compute_metric(embedding_gradient)
         harmonic = - np.linalg.inv(metric) @ self.stiffness @ (x - self.attractor) - np.linalg.inv(metric) @ self.dissipation @ dx
         return harmonic
@@ -71,7 +71,7 @@ class DynamicalSystem:
         Returns:
             np.ndarray: next acceleration
         """
-        embedding, embedding_gradient, embedding_hessian = self.embedding.derive(x, dx)
+        embedding, embedding_gradient, embedding_hessian = self.embedding(q=x, dq=dx)
         metric = self.compute_metric(embedding_gradient)
         christoffel = self.compute_christoffel(metric, embedding_gradient, embedding_hessian)
         geodesic = - np.einsum('qij,i->qj', christoffel, dx) @ dx
@@ -90,7 +90,7 @@ class DynamicalSystem:
         """
         def switch(psi, kappa: float):
             return 1 if psi <= kappa else 0
-        embedding, embedding_gradient, embedding_hessian = self.embedding.derive(x, dx)
+        embedding, embedding_gradient, embedding_hessian = self.embedding(q=x, dq=dx, derivation_order=2)
         metric = self.compute_metric(embedding_gradient)
         christoffel = self.compute_christoffel(metric, embedding_gradient, embedding_hessian)
         harmonic = - np.linalg.inv(metric) @ (self.stiffness @ (x - self.attractor) + metric @ self.dissipation @ dx)
