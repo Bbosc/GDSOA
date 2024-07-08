@@ -107,7 +107,7 @@ class Collision:
 
 class JointLimit:
     def __init__(self, limits: np.ndarray, slope: float = 30, booster: int = 1000)->None:
-        self._limits = limits
+        self._limits = np.array([[limit['lower'], limit['upper']] for limit in limits]).T
         self._slope = slope
         self._booster = booster
         self._value = None
@@ -116,8 +116,8 @@ class JointLimit:
 
     def value(self, **kwargs)->np.ndarray:
         self._q = kwargs['q'] 
-        upper_bound = 1 / (1 + np.exp(self._slope*(self.limits[1] - self._q)))
-        lower_bound = 1 / (1 + np.exp(self._slope*(self._q - self.limits[0])))
+        upper_bound = 1 / (1 + np.exp(self._slope*(self._limits[1] - self._q)))
+        lower_bound = 1 / (1 + np.exp(self._slope*(self._q - self._limits[0])))
         return self._booster*(upper_bound + lower_bound)
 
     def gradient(self)->np.ndarray:
@@ -127,24 +127,24 @@ class JointLimit:
         return np.diag(self._second_derivative(self._q))
 
     def _first_derivative(self, q: np.ndarray):
-        u = (1 + np.exp(self._slope*(self.limits[1] - q)))
-        u_p = - self._slope * np.exp(self._slope*(self.limits[1] - q))
+        u = (1 + np.exp(self._slope*(self._limits[1] - q)))
+        u_p = - self._slope * np.exp(self._slope*(self._limits[1] - q))
         one = - u_p / (u**2)
-        u = 1 + np.exp(self._slope*(q - self.limits[0]))
-        u_p = self._slope * np.exp(self._slope*(q - self.limits[0]))
+        u = 1 + np.exp(self._slope*(q - self._limits[0]))
+        u_p = self._slope * np.exp(self._slope*(q - self._limits[0]))
         two = - u_p / (u**2)
         return self._booster*(one + two)
 
     def _second_derivative(self, q: np.ndarray):
-        u = self._slope * np.exp(self._slope*(self.limits[1] - q))
-        v = (1 + np.exp(self._slope*(self.limits[1] - q)))**2
-        u_p = -(self._slope**2)*np.exp(self._slope*(self.limits[1] - q))
-        v_p = - 2 * (1 + np.exp(self._slope*(self.limits[1] - q))) * self._slope * np.exp(self._slope*(self.limits[1] - q))
+        u = self._slope * np.exp(self._slope*(self._limits[1] - q))
+        v = (1 + np.exp(self._slope*(self._limits[1] - q)))**2
+        u_p = -(self._slope**2)*np.exp(self._slope*(self._limits[1] - q))
+        v_p = - 2 * (1 + np.exp(self._slope*(self._limits[1] - q))) * self._slope * np.exp(self._slope*(self._limits[1] - q))
         one = (u_p * v - u * v_p)/(v**2)
 
-        u = self._slope * np.exp(self._slope*(q - self.limits[0]))
-        v = (1 + np.exp(self._slope*(q - self.limits[0])))**2
-        u_p = (self._slope**2)*np.exp(self._slope*(q - self.limits[0]))
-        v_p = 2 * (1 + np.exp(self._slope*(q - self.limits[0]))) * self._slope * np.exp(self._slope*(q - self.limits[0]))
+        u = self._slope * np.exp(self._slope*(q - self._limits[0]))
+        v = (1 + np.exp(self._slope*(q - self._limits[0])))**2
+        u_p = (self._slope**2)*np.exp(self._slope*(q - self._limits[0]))
+        v_p = 2 * (1 + np.exp(self._slope*(q - self._limits[0]))) * self._slope * np.exp(self._slope*(q - self._limits[0]))
         two = - (u_p * v - u * v_p)/(v**2)
         return self._booster*(one + two)
