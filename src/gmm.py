@@ -13,7 +13,7 @@ from utils.visualization import plot_3d_ellipsoid_from_covariance
 class RobotModel:
     MESH_PREFIX = 'franka_description/meshes/refined/'
     BINARY_PREFIX = '.bin/'
-    def __init__(self, urdf_file: str, gmm_configuration_file: str = 'config/gmm.json') -> None:
+    def __init__(self, urdf_file: str, gmm_configuration_file: str) -> None:
         # get neutral frame's translation and rotation
         self._model = pin.buildModelFromUrdf(urdf_file)
         self._data = self._model.createData() 

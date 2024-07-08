@@ -1,12 +1,11 @@
 import json
 import numpy as np
 import time
-from tqdm import tqdm
 from src.embedding import Embedding
 from src.dynamical_system import DynamicalSystem
 from src.forward_kinematics import ForwardKinematic
 from utils.franka_parameters import joint_limits
-from utils.messenger import Messenger, Client
+from utils.messenger import Client
 
 
 if __name__ == '__main__':
@@ -21,7 +20,7 @@ if __name__ == '__main__':
 
     # arbitrary target configuration
     config_attractor = np.array([a * np.pi/180 for a in config['attractor']])
-    # placing an obstacle in the trajectory's way
+    # placing obstacles in the trajectory's way
     x = np.array(config['obstacles'])
 
     e = Embedding(dimension=fk.model.nq, x=x, fk=fk, limits=joint_limits)
@@ -34,8 +33,6 @@ if __name__ == '__main__':
     q = np.array([a * np.pi/180 for a in config['initial_configuration']])
     dq = np.array(config['initial_velocities'])
 
-    # zmq streamer to the beautfiul-bullet simulator
-    # publisher = Messenger(port="5511")
     client = Client(port="5511")
 
     #iterate over the DS
