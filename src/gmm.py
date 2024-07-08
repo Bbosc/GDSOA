@@ -28,7 +28,11 @@ class RobotModel:
             for i in range(self._model.nq):
                 self.n_components += configuration[str(i)]
                 self.partitions.append(self.n_components)
-                self._gmms.append(self._get_gmm_model(link_id=i, n_components=configuration[str(i)]))
+                if self._model.name == 'panda':
+                    gmm = self._get_gmm_model(link_id=i, n_components=configuration[str(i)])
+                else:
+                    gmm = Link(n_components=configuration[str(i)]).gmm
+                self._gmms.append(gmm)
 
     @classmethod
     def _extract_surface_points(cls, link_id: int)->np.ndarray:
@@ -96,3 +100,43 @@ class RobotModel:
     @property
     def gmms(self):
         return self._gmms
+
+
+class Link:
+    """Create a fictive link with an ellispoid shape
+    """
+    def __init__(self, n_components) -> None:
+        points = self._generate_ellipsoid().T[[0, 2, 1]].T
+        self.points = points.copy()
+        self.gmm = GaussianMixture(n_components=n_components)
+        self.gmm.fit(self.points)
+
+    @staticmethod
+    def _generate_ellipsoid(a=0.25, b=0.25, c=0.5, num_points=1000):
+        """
+        Generates a 3D point cloud representing an ellipsoid.
+
+        Parameters:
+        a (float): Semi-axis length along the x-axis.
+        b (float): Semi-axis length along the y-axis.
+        c (float): Semi-axis length along the z-axis.
+        num_points (int): Number of points in the point cloud.
+
+        Returns:
+        np.ndarray: Array of shape (num_points, 3) representing the point cloud.
+        """
+        # Generate random points on a unit sphere
+        phi = np.random.uniform(0, 2 * np.pi, num_points)
+        cos_theta = np.random.uniform(-1, 1, num_points)
+        sin_theta = np.sqrt(1 - cos_theta**2)
+
+        x = sin_theta * np.cos(phi)
+        y = sin_theta * np.sin(phi)
+        z = cos_theta
+
+        # Scale points to the ellipsoid
+        x *= a
+        y *= b
+        z *= c
+
+        return np.vstack((x, y, z + c)).T
