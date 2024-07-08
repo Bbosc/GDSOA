@@ -1,44 +1,23 @@
-import time
 import numpy as np
 from .forward_kinematics import ForwardKinematic
 
 class Embedding:
-    def __init__(self, dimension: int, x: np.ndarray, fk: ForwardKinematic, limits: np.ndarray):
-        self.dim = dimension
-        self.fk = fk
+    """Computes collision probabilities, and derives it up to the second order
+    """
+    def __init__(self, x: np.ndarray, fk: ForwardKinematic):
         self.x = x
+        self.fk = fk
         assert self.x.ndim == 3, "X must be 3 dimensional : #obstacles, cartesian_dim, 1"
-        self._value = 0
-        self.gradient = np.zeros((1, self.dim))
-        self.hessian = np.zeros((self.dim, self.dim))
-        self.limits = np.array([[limit['lower'], limit['upper']] for limit in limits]).T
-        self.p_logger = []
+        self.gradient = np.zeros((1, self.x.shape[1]))
+        self.hessian = np.zeros((self.x.shape[1], self.x.shape[1]))
         self.p : np.ndarray = None
     
     def update_parameters(self, mu, sigma):
         self.nmu = mu[:, :, np.newaxis]
         self.diff = self.x[:, np.newaxis] - self.nmu[np.newaxis, :]
         self.nsigma = sigma
-        self.gradient = np.zeros((1, self.dim))
-        self.hessian = np.zeros((self.dim, self.dim))
-
-    def profiler(func):
-        def wrapper(*args):
-            start = time.time()
-            res = func(*args)
-            print(f'execution frequency of {func.__name__}: {1/(time.time() - start):.4f} Hz')
-            return res
-        return wrapper
-
-    def limit_embedding(self, q):
-        upper_bound = 10 / (1 + np.exp(30*(self.limits[1] - q)))
-        lower_bound = 10 / (1 + np.exp(30*(q - self.limits[0])))
-        return upper_bound + lower_bound
-
-    @staticmethod
-    def generalized_sigmoid(x, b=1., a=0., k=1., m=0.):
-        c = -b*(x-m) # to avoid overflow in exp
-        return (k-a) / (1 + np.exp(c)) + a
+        self.gradient = np.zeros((1, self.x.shape[1]))
+        self.hessian = np.zeros((self.x.shape[1], self.x.shape[1]))
 
     def compute_value(self):
         prefix = 1/(np.sqrt(np.power(2*np.pi, self.x.shape[1]) * np.linalg.det(self.nsigma)))
@@ -52,7 +31,7 @@ class Embedding:
         mus, sigmas, dmus, dsigmas, ddmus, ddsigmas = self.fk(q, dq)
         self.update_parameters(mu=mus, sigma=sigmas)
         # compute the embedding value
-        p = self.compute_value() #+ self.limit_embedding(q=q)
+        p = self.compute_value() 
         # derivative of the embedding
         sigma_inv = np.linalg.inv(self.nsigma)
         dsigma_inv = np.einsum('kmn, knpo, kpq -> kmqo', -sigma_inv, dsigmas, sigma_inv)
@@ -70,7 +49,7 @@ class Embedding:
     def value_only(self, q):
         self.fk(q=q, dq=np.zeros_like(q), derivation_order=0)
         self.update_parameters(mu=self.fk.mus, sigma=self.fk.sigmas)
-        p = self.compute_value() + self.limit_embedding(q)
+        p = self.compute_value()
         return p
     
     def _derive_wrt_mu(self, p, mu, sigma):
@@ -120,13 +99,6 @@ class Embedding:
         b = 0.5 * p * (b1 + b2 + b3 + b4)
         return a + b
 
-    @property
-    def value(self)->np.ndarray:
-        return self.compute_value()
-
     def distance_metric(self):
         distances = np.linalg.norm(self.x[np.newaxis, :] - self.nmu[:, np.newaxis, :], axis=2)
         return np.array([np.min(distance) for distance in np.split(distances, self.fk.robot_model.partitions[:-1])])
-    
-def cropper(value, threshold = 0.2):
-    return np.zeros_like(value) if (value.sum() < threshold) else value

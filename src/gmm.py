@@ -11,9 +11,15 @@ from utils.visualization import plot_3d_ellipsoid_from_covariance
 
 
 class RobotModel:
-    MESH_PREFIX = 'franka_description/meshes/refined/'
+    MESH_PREFIX = 'franka_description/meshes/visual/'
     BINARY_PREFIX = '.bin/'
     def __init__(self, urdf_file: str, gmm_configuration_file: str) -> None:
+        """Fits at least one GMM per link
+
+        Args:
+            urdf_file (str): the urdf description of the manipulator
+            gmm_configuration_file (str): number of gmms per link
+        """
         # get neutral frame's translation and rotation
         self._model = pin.buildModelFromUrdf(urdf_file)
         self._data = self._model.createData() 
@@ -31,11 +37,13 @@ class RobotModel:
                 if self._model.name == 'panda':
                     gmm = self._get_gmm_model(link_id=i, n_components=configuration[str(i)])
                 else:
+                    # if no stl are available, fit a gmm on a fictive link
                     gmm = Link(n_components=configuration[str(i)]).gmm
                 self._gmms.append(gmm)
 
     @classmethod
     def _extract_surface_points(cls, link_id: int)->np.ndarray:
+        '''create the pointcloud representation of an stl file'''
         # select one points from each vertices
         mesh_name = cls.MESH_PREFIX + f'visual_link{link_id}.stl'
         return meshlib.Mesh.from_file(mesh_name).points[:, :3]
@@ -48,6 +56,7 @@ class RobotModel:
 
     @staticmethod
     def _to_global(obj: np.ndarray, rotation: np.ndarray, translation: np.ndarray = None)->np.ndarray:
+        '''convert coordinates relative to an object to global coordinates'''
         assert ((rotation.ndim == 2) and (rotation.shape[0] == rotation.shape[1]))
         transformed_object = obj.copy()
         if rotation is not None:
@@ -57,6 +66,7 @@ class RobotModel:
         return transformed_object
 
     def _rebase_surface(self, link_id: int):
+        '''rotate a link to match proper orientation'''
         frame_name = f'panda_link{link_id}'
         frame_id = self._model.getFrameId(frame_name)
         rotation = self._data.oMf[frame_id].rotation
@@ -64,6 +74,8 @@ class RobotModel:
         return np.dot(surface, rotation.T)
 
     def _get_gmm_model(self, link_id: int, n_components: int)->GaussianMixture:
+        '''If a gmm model with the right number of components is alread existing,
+        fetch it. Otherwise recreate a new gmm model'''
         model_path = self.BINARY_PREFIX + f'link{link_id}'
         if Path(model_path).is_file():
             with open(model_path, 'rb') as file:

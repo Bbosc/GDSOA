@@ -4,6 +4,9 @@ from .embedding import Embedding
 
 
 class DynamicalSystem:
+    '''Compute an acceleration based on the current state of the manipulator
+        and integrate to get the velocity, then the position
+    '''
     def __init__(self, stiffness: np.ndarray, dissipation: np.ndarray, attractor: np.ndarray, embedding: Embedding, dt: float = 0.02) -> None:
         self.stiffness = stiffness
         self.dissipation = dissipation
@@ -12,7 +15,20 @@ class DynamicalSystem:
         self.dt = dt
         self.x_logger = []
 
-    def __call__(self, x, dx, mode:Literal['normal', 'geodesic', 'harmonic']='normal', **kwargs):
+    def __call__(self, x: np.ndarray, dx: np.ndarray, mode:Literal['normal', 'geodesic', 'harmonic']='normal', **kwargs)->tuple:
+        """Comute the acceleration according to a specific mode an integrate twice
+
+        Args:
+            x (np.ndarray): current position of the system
+            dx (np.ndarray): current velocity of the system
+            mode (Literal[normal, geodesic, harmonic], optional): Computation mode. Defaults to 'normal'.
+
+        Raises:
+            NotImplementedError: If an unknown mode is fed
+
+        Returns:
+            tuple: next position, next velocity
+        """
         if mode == 'normal':
             ddx = self.compute_basic_switched_acceleration(x.copy(), dx.copy(), **kwargs)
         elif mode == 'geodesic':
@@ -22,20 +38,39 @@ class DynamicalSystem:
         else: raise NotImplementedError
         return self.integrate(x.copy(), dx.copy(), ddx)
 
-    def integrate(self, x, dx, ddx):
+    def integrate(self, x: np.ndarray, dx: np.ndarray, ddx: np.ndarray)->tuple:
+        '''Euler integrate twice'''
         new_dx = dx + ddx * self.dt
         new_x = x + new_dx * self.dt
         # loggers
         self.x_logger.append(new_x)
         return new_x, new_dx
     
-    def compute_harmonic_acceleration(self, x, dx):
+    def compute_harmonic_acceleration(self, x: np.ndarray, dx: np.ndarray)->np.ndarray:
+        """Compute only the acceleration with the elastic and dissipation forces
+
+        Args:
+            x (np.ndarray): current position
+            dx (np.ndarray): current velocity
+
+        Returns:
+            np.ndarray: next acceleration
+        """
         embedding, embedding_gradient, embedding_hessian = self.embedding.derive(x, dx)
         metric = self.compute_metric(embedding_gradient)
         harmonic = - np.linalg.inv(metric) @ self.stiffness @ (x - self.attractor) - np.linalg.inv(metric) @ self.dissipation @ dx
         return harmonic
 
     def compute_geodesic_acceleration(self, x, dx):
+        """Compute only the acceleration with the geodesic term only 
+
+        Args:
+            x (np.ndarray): current position
+            dx (np.ndarray): current velocity
+
+        Returns:
+            np.ndarray: next acceleration
+        """
         embedding, embedding_gradient, embedding_hessian = self.embedding.derive(x, dx)
         metric = self.compute_metric(embedding_gradient)
         christoffel = self.compute_christoffel(metric, embedding_gradient, embedding_hessian)
@@ -43,6 +78,16 @@ class DynamicalSystem:
         return geodesic
 
     def compute_basic_switched_acceleration(self, x, dx, **kwargs):
+        """Compute only the acceleration with a basic switching method
+
+        Args:
+            x (np.ndarray): current position
+            dx (np.ndarray): current velocity
+            kwargs (dict): the probability threshold of the switch
+
+        Returns:
+            np.ndarray: next acceleration
+        """
         def switch(psi, kappa: float):
             return 1 if psi <= kappa else 0
         embedding, embedding_gradient, embedding_hessian = self.embedding.derive(x, dx)

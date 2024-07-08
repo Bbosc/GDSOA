@@ -2,11 +2,12 @@ import time
 from typing import List
 import numpy as np
 import pinocchio as pin
-from .urdf_parser import URDFParser
 from .gmm import RobotModel
 
 
 class ForwardKinematic:
+    '''Computes the means and the covariances of a GMM representation, and 
+    their derivatives with respect to the joint angles'''
     def __init__(self, urdf_file: str, gmm_configuration_file: str='config/gmm.json', dim: int = 3) -> None:
         self.robot_model = RobotModel(urdf_file, gmm_configuration_file)
         self.model = pin.buildModelFromUrdf(urdf_file)
@@ -21,16 +22,18 @@ class ForwardKinematic:
         self.ddmus = np.zeros((n_gmms, self.model.nq, self.model.nq, self.dim))
         self.ddsigmas = np.zeros((n_gmms, self.model.nq, self.model.nq, self.dim, self.dim))
 
+    def __call__(self, q: np.ndarray, dq: np.ndarray, derivation_order: int = 2)->tuple:
+        """Computes the means and covariances of the GMM representation
 
-    def profiler(func):
-        def wrapper(*args, **kwargs):
-            start = time.time()
-            res = func(*args, **kwargs)
-            print(f'execution frequency of {func.__name__}: {1/(time.time() - start):.4f} Hz')
-            return res
-        return wrapper
+        Args:
+            q (np.ndarray): Joint angles
+            dq (np.ndarray): Joint velocities
+            derivation_order (int, optional): The order of differentiation of
+            the means and covariances. Defaults to 2.
 
-    def __call__(self, q: np.ndarray, dq: np.ndarray, derivation_order: int = 2):
+        Returns:
+           tuple: The new values of means and covariances, with their derivatives
+        """
         pin.forwardKinematics(self.model, self.data, q)
         pin.updateFramePlacements(self.model, self.data)
         pin.computeForwardKinematicsDerivatives(self.model, self.data, q, dq, np.zeros_like(dq))
@@ -77,6 +80,7 @@ class ForwardKinematic:
         ])
     
     def rotation_derivative(self, rotations: List[np.ndarray], drotations: List[np.ndarray]):
+        '''derivative of a link's rotation'''
         dR = np.zeros((self.model.nq, self.dim, self.dim))
         for i in range(len(rotations)):
             r = np.eye(rotations[i].shape[0])
@@ -87,6 +91,7 @@ class ForwardKinematic:
         return dR.transpose(1, 2, 0)
     
     def rotation_hessian(self, rotations: List[np.ndarray], drotations: List[np.ndarray], ddrotations: List[np.ndarray]):
+        '''second order derivative of a link's rotation'''
         ddR = np.zeros((self.model.nq, self.model.nq, self.dim, self.dim))
         for i in range(len(rotations)):
             for j in range(len(rotations)):
@@ -107,6 +112,7 @@ class ForwardKinematic:
         return ddR
 
     def second_derivative_sigma(self, cov, rotation, gradient, hessian):
+        '''second order derivative of the covariances'''
         a = np.empty((self.model.nq, self.model.nq, self.dim, self.dim))
         b = np.empty_like(a)
         c = np.empty_like(b)
@@ -118,10 +124,12 @@ class ForwardKinematic:
         return a + b + c
 
     def second_derivative_mu(self, mean, hessian, dJ):
+        '''second order derivative of the means'''
         ddmu = dJ + hessian @ mean
         return ddmu.squeeze()
 
     def jacobian_derivative(self, link_index, link_id):
+        '''derivative of the manipulator's jacobian w.r.t the joint angles'''
         ddmu = np.zeros((self.model.nq, self.model.nq, self.dim))
         dda = pin.getFrameAccelerationDerivatives(self.model, self.data, link_id, pin.ReferenceFrame.LOCAL_WORLD_ALIGNED)[3]
         ddmu[0, 0] = np.array([-1, 1, 1]) * dda[:3, 0][[1, 0, 2]]
