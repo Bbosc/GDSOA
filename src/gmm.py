@@ -11,8 +11,8 @@ from utils.visualization import plot_3d_ellipsoid_from_covariance
 
 
 class RobotModel:
-    MESH_PREFIX = 'franka_description/meshes/visual/'
-    BINARY_PREFIX = '.bin/'
+    MESH_PREFIX = '../description/franka_description/meshes/visual/'
+    BINARY_PREFIX = '../.bin/'
     def __init__(self, urdf_file: str, gmm_configuration_file: str) -> None:
         """Fits at least one GMM per link
 
