@@ -1,5 +1,5 @@
 {
-    "urdf": "../description/franka_description/urdf/panda_no_gripper.urdf",
+    "urdf": "description/franka_description/urdf/panda_no_gripper.urdf",
     "n_gmm_components": 5,
     "attractor": [90, 45, 0, -66, 0, 66, 45],
     "initial_configuration": [0, 45, 0, -66, 0, 66, 45],

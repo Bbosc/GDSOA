@@ -1,10 +1,9 @@
 import json
 import numpy as np
 import time
-from src.embedding import Embedding
+from src.embedding import Embedding, Collision
 from src.dynamical_system import DynamicalSystem
 from src.forward_kinematics import ForwardKinematic
-from utils.franka_parameters import joint_limits
 from utils.messenger import Client
 
 
@@ -23,7 +22,9 @@ if __name__ == '__main__':
     # placing obstacles in the trajectory's way
     x = np.array(config['obstacles'])
 
-    e = Embedding(dimension=fk.model.nq, x=x, fk=fk, limits=joint_limits)
+    e = Embedding(
+        embeddings=[Collision(x=x, fk=fk)]
+    )
 
     K = 0.5 * np.eye(fk.model.nq)
     D = 1.5*np.eye(fk.model.nq)
@@ -38,7 +39,7 @@ if __name__ == '__main__':
     #iterate over the DS
     print(f"starting DS iteration. Target : {config_attractor}")
     for _ in range(13000):
-        ddq = ds.compute_acceleration(q, dq)
+        ddq = ds.compute_basic_switched_acceleration(q, dq, kappa=0.15)
         client.send_request(ddq.squeeze().tolist())
         q, dq = np.split(client.get_reply(), 2)
         time.sleep(1e-3)

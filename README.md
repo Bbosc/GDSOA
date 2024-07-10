@@ -10,3 +10,29 @@ This DS evolves in an embedded representation of the configuration space, enhanc
 It can achieve a computational frequency > 200Hz for a 7-dimensional configuration space, on a i7-1360P CPU with 16 cores, and successfully achieves multi-obstacle avoidance in 
 different scenarios.
 
+## Installation
+
+Clone the repository:
+
+```console
+git clone git@github.com:Bbosc/GDSOA.git
+```
+
+### Install the dependencies
+
+With pip:
+
+```console
+python3 -m venv gdsoa
+. ./gdsoa/bin/activate
+pip install -r requirements.txt
+```
+
+With mamba/conda:
+
+```console
+mamba env create -f environment.yml
+```
+
+
+
