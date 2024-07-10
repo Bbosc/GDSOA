@@ -10,6 +10,8 @@ This DS evolves in an embedded representation of the configuration space, enhanc
 It can achieve a computational frequency > 200Hz for a 7-dimensional configuration space, on a i7-1360P CPU with 16 cores, and successfully achieves multi-obstacle avoidance in 
 different scenarios.
 
+The simulation interface used to valid this project can be found [here](https://github.com/Bbosc/gds-sim).
+
 ## Installation
 
 Clone the repository:
