@@ -14,7 +14,7 @@ if __name__ == '__main__':
 
     fk = ForwardKinematic(
         urdf_file=config['urdf'],
-        gmm_configuration_file='config/gmm.json'
+        gmm_configuration_file='config/gmm_unit.json'
         )
 
     # arbitrary target configuration
@@ -27,8 +27,10 @@ if __name__ == '__main__':
     )
 
     K = 0.5 * np.eye(fk.model.nq)
-    D = 1.5*np.eye(fk.model.nq)
-    ds = DynamicalSystem(stiffness=K, dissipation=D, attractor=config_attractor, embedding=e, dt=0.001)
+    D = 1.5 * np.eye(fk.model.nq)
+    ds = DynamicalSystem(
+        stiffness=K, dissipation=D, attractor=config_attractor, embedding=e
+    )
 
     # initial conditions
     q = np.array([a * np.pi/180 for a in config['initial_configuration']])
@@ -36,14 +38,5 @@ if __name__ == '__main__':
 
     client = Client(port="5511")
 
-    #iterate over the DS
-    print(f"starting DS iteration. Target : {config_attractor}")
-    for _ in range(13000):
-        ddq = ds.compute_basic_switched_acceleration(q, dq, kappa=0.15)
-        client.send_request(ddq.squeeze().tolist())
-        q, dq = np.split(client.get_reply(), 2)
-        time.sleep(1e-3)
-
-    np.set_printoptions(precision=3, suppress=True)
-    print(f"DS iteration finished. Final configuration : {q}")
+    q, dq = ds(q, dq, kappa=0.2)
 
