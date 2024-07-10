@@ -33,6 +33,16 @@ With mamba/conda:
 ```console
 mamba env create -f environment.yml
 ```
+### Test your installation
 
+```console
+mamba activate gdsoa # or . ./gdsoa/bin/activate
+
+python installation_test.py
+```
+
+## Test the algorithms
+
+Several examples are available the **./examples** folder.
 
 
