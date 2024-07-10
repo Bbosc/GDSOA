@@ -14,7 +14,7 @@ different scenarios.
 
 Clone the repository:
 
-```console
+```bash
 git clone git@github.com:Bbosc/GDSOA.git
 ```
 
@@ -22,7 +22,7 @@ git clone git@github.com:Bbosc/GDSOA.git
 
 With pip:
 
-```console
+```bash
 python3 -m venv gdsoa
 . ./gdsoa/bin/activate
 pip install -r requirements.txt
@@ -30,12 +30,12 @@ pip install -r requirements.txt
 
 With mamba/conda:
 
-```console
+```bash
 mamba env create -f environment.yml
 ```
 ### Test your installation
 
-```console
+```bash
 mamba activate gdsoa # or . ./gdsoa/bin/activate
 
 python installation_test.py
