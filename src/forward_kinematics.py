@@ -1,4 +1,3 @@
-import time
 from typing import List
 import numpy as np
 import pinocchio as pin

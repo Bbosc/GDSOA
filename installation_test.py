@@ -1,6 +1,5 @@
 import json
 import numpy as np
-import time
 from src.embedding import Embedding, Collision
 from src.dynamical_system import DynamicalSystem
 from src.forward_kinematics import ForwardKinematic
