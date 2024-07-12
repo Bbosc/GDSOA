@@ -30,6 +30,12 @@ class Embedding:
             psi += embedding.value(**kwargs)
         return psi
 
+    def distance_metric(self):
+        for embedding in self._embeddings:
+            if isinstance(embedding, Collision):
+                return self.distance_metric()
+        raise AttributeError("No distance metric available with the current embeddings")
+
 
 class Collision:
     '''Embedding object encoding the collision probability manipulator-obstacle'''

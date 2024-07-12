@@ -15,7 +15,10 @@ class DynamicalSystem:
         self.dt = dt
         self.x_logger = []
 
-    def __call__(self, x: np.ndarray, dx: np.ndarray, mode:Literal['normal', 'geodesic', 'harmonic']='normal', **kwargs)->tuple:
+    def __call__(self,
+                 x: np.ndarray,
+                 dx: np.ndarray, mode:Literal['normal', 'geodesic', 'harmonic', 'smooth', 'cartesian']='normal',
+                 **kwargs)->tuple:
         """Comute the acceleration according to a specific mode an integrate twice
 
         Args:
@@ -35,6 +38,10 @@ class DynamicalSystem:
             ddx = self.compute_geodesic_acceleration(x.copy(), dx.copy())
         elif mode == 'harmonic':
             ddx = self.compute_harmonic_acceleration(x.copy(), dx.copy())
+        elif mode == 'smooth':
+            ddx = self.compute_smooth_switched_acceleration(x.copy(), dx.copy(), **kwargs)
+        elif mode == 'cartesian':
+            ddx = self.compute_cartesian_switched_acceleration(x.copy(), dx.copy(), **kwargs)
         else: raise NotImplementedError
         return self.integrate(x.copy(), dx.copy(), ddx)
 
@@ -98,6 +105,39 @@ class DynamicalSystem:
         sigma = switch(psi=embedding.sum(), kappa=kwargs['kappa'])
         return sigma * harmonic + (1-sigma)*geodesic
 
+    def compute_smooth_switched_acceleration(self, x: np.ndarray, dx: np.ndarray, **kwargs):
+        """Compute the acceleration with a sigmoid-like switching method
+
+        Args:
+            x (np.ndarray): current position
+            dx (np.ndarray): current velocity
+        """
+        def switch(psi, kappa: float, slope: float):
+            return self.generalized_sigmoid(x=psi, b=slope, a=1, k=0, m=kappa)
+
+        embedding, embedding_gradient, embedding_hessian = self.embedding.derive(x, dx)
+        metric = self.compute_metric(embedding_gradient)
+        christoffel = self.compute_christoffel(metric, embedding_gradient, embedding_hessian)
+        harmonic = - np.linalg.inv(metric) @ (self.stiffness @ (x - self.attractor) + metric @ self.dissipation @ dx)
+        geodesic = - np.einsum('qij,i->qj', christoffel, dx) @ dx
+        sigma = switch(psi=embedding.sum(), kappa=kwargs['kappa'], slope=kwargs['slope'])
+        self.switch_logger.append(sigma)
+        return sigma * harmonic + (1-sigma)*geodesic
+    
+    def compute_cartesian_switched_acceleration(self, x, dx, **kwargs):
+        def switch(kappa: float, slope: float):
+            distances = self.embedding.distance_metric()
+            return self.generalized_sigmoid(x=distances, b=slope, a=0, k=1, m=kappa).squeeze() # switch around 30 cm
+        
+        _, embedding_gradient, embedding_hessian = self.embedding.derive(x, dx)
+        metric = self.compute_metric(embedding_gradient)
+        christoffel = self.compute_christoffel(metric, embedding_gradient, embedding_hessian)
+        harmonic = - np.linalg.inv(metric) @ (self.stiffness @ (x - self.attractor) + metric @ self.dissipation @ dx)
+        geodesic = - np.einsum('qij,i->qj', christoffel, dx) @ dx
+        sigma = switch(kappa=kwargs['kappa'], slope=kwargs['slope'])
+        self.switch_logger.append(sigma)
+        return sigma * harmonic + (1-sigma)*geodesic 
+    
     def compute_metric(self, embedding_gradient)->np.ndarray:
         d = embedding_gradient.shape[1]
         return np.eye(d) + np.outer(embedding_gradient, embedding_gradient)
